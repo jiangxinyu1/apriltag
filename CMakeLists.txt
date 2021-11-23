@@ -6,6 +6,10 @@ option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 # Set a default build type if none was specified
 set(default_build_type "Release")
 
+
+set(Thirdparty_DIR ~/cleanRobot/thirdparty)
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${Thirdparty_DIR}/CMakeModules")
+
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     message(STATUS "Setting build type to '${default_build_type}' as none was specified.")
     set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE  STRING "Choose the type of build." FORCE)
@@ -54,6 +58,7 @@ set(version_config "${generated_dir}/${PROJECT_NAME}ConfigVersion.cmake")
 set(project_config "${generated_dir}/${PROJECT_NAME}Config.cmake")
 set(targets_export_name "${PROJECT_NAME}Targets")
 set(config_install_dir "share/${PROJECT_NAME}/cmake")
+
 
 # Include module with fuction 'write_basic_package_version_file'
 include(CMakePackageConfigHelpers)
@@ -138,14 +143,34 @@ endif (NOT Python3_NOT_FOUND AND NOT Numpy_NOT_FOUND AND PYTHONLIBS_FOUND AND BU
 
 # Examples
 # apriltag_demo
-add_executable(apriltag_demo example/apriltag_demo.c)
-target_link_libraries(apriltag_demo apriltag)
+# directory of opencv library
+
+
+
+find_package(OpenCV REQUIRED)
+
+INCLUDE_DIRECTORIES(
+    ${OpenCV_INCLUDE_DIRS}
+    ${PROJECT_SOURCE_DIR}/src/thirdParty
+    ${Thirdparty_DIR}/include    
+    ${Thirdparty_DIR}/include/opencv2
+)
+
+
+include_directories("/usr/include/eigen3")
+
+link_directories(${OpenCV_LIBRARY_DIRS})
+
+# opencv librarie
+# add_executable(apriltag_demo example/apriltag_demo.c)
+# target_link_libraries(apriltag_demo apriltag)
 
 # opencv_demo
-find_package(OpenCV COMPONENTS core imgproc videoio highgui QUIET)
+
+# find_package(OpenCV COMPONENTS core imgproc videoio highgui QUIET)
 if(OpenCV_FOUND)
     add_executable(opencv_demo example/opencv_demo.cc)
-    target_link_libraries(opencv_demo apriltag ${OpenCV_LIBRARIES})
+    target_link_libraries(opencv_demo apriltag ${OpenCV_LIBS})
     set_target_properties(opencv_demo PROPERTIES CXX_STANDARD 11)
     install(TARGETS opencv_demo RUNTIME DESTINATION bin)
 else()
@@ -153,4 +178,4 @@ else()
 endif(OpenCV_FOUND)
 
 # install example programs
-install(TARGETS apriltag_demo RUNTIME DESTINATION bin)
+# install(TARGETS apriltag_demo RUNTIME DESTINATION bin)

@@ -51,7 +51,7 @@ EQUALS = =
 CMAKE_SOURCE_DIR = /home/xinyu/workspace/360/apriltag
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /home/xinyu/workspace/360/apriltag/example
+CMAKE_BINARY_DIR = /home/xinyu/workspace/360/apriltag/buildPc
 
 #=============================================================================
 # Targets provided globally by CMake.
@@ -126,9 +126,9 @@ list_install_components/fast: list_install_components
 
 # The main all target
 all: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/xinyu/workspace/360/apriltag/example/CMakeFiles /home/xinyu/workspace/360/apriltag/example/CMakeFiles/progress.marks
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/xinyu/workspace/360/apriltag/buildPc/CMakeFiles /home/xinyu/workspace/360/apriltag/buildPc/CMakeFiles/progress.marks
 	$(MAKE) -f CMakeFiles/Makefile2 all
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/xinyu/workspace/360/apriltag/example/CMakeFiles 0
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/xinyu/workspace/360/apriltag/buildPc/CMakeFiles 0
 .PHONY : all
 
 # The main clean target
@@ -221,33 +221,6 @@ apriltag.s: apriltag.c.s
 apriltag.c.s:
 	$(MAKE) -f CMakeFiles/apriltag.dir/build.make CMakeFiles/apriltag.dir/apriltag.c.s
 .PHONY : apriltag.c.s
-
-apriltag_demo.o: apriltag_demo.c.o
-
-.PHONY : apriltag_demo.o
-
-# target to build an object file
-apriltag_demo.c.o:
-	$(MAKE) -f CMakeFiles/apriltag_demo.dir/build.make CMakeFiles/apriltag_demo.dir/apriltag_demo.c.o
-.PHONY : apriltag_demo.c.o
-
-apriltag_demo.i: apriltag_demo.c.i
-
-.PHONY : apriltag_demo.i
-
-# target to preprocess a source file
-apriltag_demo.c.i:
-	$(MAKE) -f CMakeFiles/apriltag_demo.dir/build.make CMakeFiles/apriltag_demo.dir/apriltag_demo.c.i
-.PHONY : apriltag_demo.c.i
-
-apriltag_demo.s: apriltag_demo.c.s
-
-.PHONY : apriltag_demo.s
-
-# target to generate assembly for a file
-apriltag_demo.c.s:
-	$(MAKE) -f CMakeFiles/apriltag_demo.dir/build.make CMakeFiles/apriltag_demo.dir/apriltag_demo.c.s
-.PHONY : apriltag_demo.c.s
 
 apriltag_pose.o: apriltag_pose.c.o
 
@@ -816,32 +789,59 @@ common/zmaxheap.c.s:
 	$(MAKE) -f CMakeFiles/apriltag.dir/build.make CMakeFiles/apriltag.dir/common/zmaxheap.c.s
 .PHONY : common/zmaxheap.c.s
 
-opencv_demo.o: opencv_demo.cc.o
+example/apriltag_demo.o: example/apriltag_demo.c.o
 
-.PHONY : opencv_demo.o
+.PHONY : example/apriltag_demo.o
 
 # target to build an object file
-opencv_demo.cc.o:
-	$(MAKE) -f CMakeFiles/opencv_demo.dir/build.make CMakeFiles/opencv_demo.dir/opencv_demo.cc.o
-.PHONY : opencv_demo.cc.o
+example/apriltag_demo.c.o:
+	$(MAKE) -f CMakeFiles/apriltag_demo.dir/build.make CMakeFiles/apriltag_demo.dir/example/apriltag_demo.c.o
+.PHONY : example/apriltag_demo.c.o
 
-opencv_demo.i: opencv_demo.cc.i
+example/apriltag_demo.i: example/apriltag_demo.c.i
 
-.PHONY : opencv_demo.i
+.PHONY : example/apriltag_demo.i
 
 # target to preprocess a source file
-opencv_demo.cc.i:
-	$(MAKE) -f CMakeFiles/opencv_demo.dir/build.make CMakeFiles/opencv_demo.dir/opencv_demo.cc.i
-.PHONY : opencv_demo.cc.i
+example/apriltag_demo.c.i:
+	$(MAKE) -f CMakeFiles/apriltag_demo.dir/build.make CMakeFiles/apriltag_demo.dir/example/apriltag_demo.c.i
+.PHONY : example/apriltag_demo.c.i
 
-opencv_demo.s: opencv_demo.cc.s
+example/apriltag_demo.s: example/apriltag_demo.c.s
 
-.PHONY : opencv_demo.s
+.PHONY : example/apriltag_demo.s
 
 # target to generate assembly for a file
-opencv_demo.cc.s:
-	$(MAKE) -f CMakeFiles/opencv_demo.dir/build.make CMakeFiles/opencv_demo.dir/opencv_demo.cc.s
-.PHONY : opencv_demo.cc.s
+example/apriltag_demo.c.s:
+	$(MAKE) -f CMakeFiles/apriltag_demo.dir/build.make CMakeFiles/apriltag_demo.dir/example/apriltag_demo.c.s
+.PHONY : example/apriltag_demo.c.s
+
+example/opencv_demo.o: example/opencv_demo.cc.o
+
+.PHONY : example/opencv_demo.o
+
+# target to build an object file
+example/opencv_demo.cc.o:
+	$(MAKE) -f CMakeFiles/opencv_demo.dir/build.make CMakeFiles/opencv_demo.dir/example/opencv_demo.cc.o
+.PHONY : example/opencv_demo.cc.o
+
+example/opencv_demo.i: example/opencv_demo.cc.i
+
+.PHONY : example/opencv_demo.i
+
+# target to preprocess a source file
+example/opencv_demo.cc.i:
+	$(MAKE) -f CMakeFiles/opencv_demo.dir/build.make CMakeFiles/opencv_demo.dir/example/opencv_demo.cc.i
+.PHONY : example/opencv_demo.cc.i
+
+example/opencv_demo.s: example/opencv_demo.cc.s
+
+.PHONY : example/opencv_demo.s
+
+# target to generate assembly for a file
+example/opencv_demo.cc.s:
+	$(MAKE) -f CMakeFiles/opencv_demo.dir/build.make CMakeFiles/opencv_demo.dir/example/opencv_demo.cc.s
+.PHONY : example/opencv_demo.cc.s
 
 tag16h5.o: tag16h5.c.o
 
@@ -1104,9 +1104,6 @@ help:
 	@echo "... apriltag.o"
 	@echo "... apriltag.i"
 	@echo "... apriltag.s"
-	@echo "... apriltag_demo.o"
-	@echo "... apriltag_demo.i"
-	@echo "... apriltag_demo.s"
 	@echo "... apriltag_pose.o"
 	@echo "... apriltag_pose.i"
 	@echo "... apriltag_pose.s"
@@ -1170,9 +1167,12 @@ help:
 	@echo "... common/zmaxheap.o"
 	@echo "... common/zmaxheap.i"
 	@echo "... common/zmaxheap.s"
-	@echo "... opencv_demo.o"
-	@echo "... opencv_demo.i"
-	@echo "... opencv_demo.s"
+	@echo "... example/apriltag_demo.o"
+	@echo "... example/apriltag_demo.i"
+	@echo "... example/apriltag_demo.s"
+	@echo "... example/opencv_demo.o"
+	@echo "... example/opencv_demo.i"
+	@echo "... example/opencv_demo.s"
 	@echo "... tag16h5.o"
 	@echo "... tag16h5.i"
 	@echo "... tag16h5.s"

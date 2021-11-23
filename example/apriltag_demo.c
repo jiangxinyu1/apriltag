@@ -30,6 +30,8 @@ of the authors and should not be interpreted as representing official policies,
 either expressed or implied, of the Regents of The University of Michigan.
 */
 
+
+
 #include <stdio.h>
 #include <stdint.h>
 #include <inttypes.h>
@@ -64,7 +66,7 @@ int main(int argc, char *argv[])
     getopt_add_bool(getopt, 'h', "help", 0, "Show this help");
     getopt_add_bool(getopt, 'd', "debug", 0, "Enable debugging output (slow)");
     getopt_add_bool(getopt, 'q', "quiet", 0, "Reduce output");
-    getopt_add_string(getopt, 'f', "family", "tag36h11", "Tag family to use");
+    getopt_add_string(getopt, 'f', "family", "tag16h5", "Tag family to use");
     getopt_add_int(getopt, 'i', "iters", "1", "Repeat processing on input set this many times");
     getopt_add_int(getopt, 't', "threads", "1", "Use this many CPU threads");
     getopt_add_int(getopt, 'a', "hamming", "1", "Detect tags with up to this many bit errors.");
@@ -192,16 +194,29 @@ int main(int argc, char *argv[])
 
             zarray_t *detections = apriltag_detector_detect(td, im);
 
-            for (int i = 0; i < zarray_size(detections); i++) {
+            for (int i = 0; i < zarray_size(detections); i++) 
+            {
+                
                 apriltag_detection_t *det;
                 zarray_get(detections, i, &det);
+                printf("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< TAG ID = %i, decision_margin = %f\n", det->id,det->decision_margin);
 
                 if (!quiet)
-                    printf("detection %3d: id (%2dx%2d)-%-4d, hamming %d, margin %8.3f\n",
-                           i, det->family->nbits, det->family->h, det->id, det->hamming, det->decision_margin);
+                    // printf("detection %3d: id (%2dx%2d)-%-4d, hamming %d, margin %8.3f\n",
+                                // i, det->family->nbits, det->family->h, det->id, det->hamming, det->decision_margin);
 
                 hamm_hist[det->hamming]++;
                 total_hamm_hist[det->hamming]++;
+
+                // print conner and center
+                for (int i = 0 ; i < 4; i++)
+                {
+                        printf("conner %i =(%f , %f) \n",i,det->p[i][0],det->p[i][1]);
+                }
+                printf("center = %f ,%f \n",det->c[0],det->c[1]);
+                // print Homography Matrix
+                printf("Homography Matrix :  \n %f,%f,%f \n %f,%f,%f\n  %f,%f,%f\n", det->H->data[0],det->H->data[1],det->H->data[2],det->H->data[3],
+                            det->H->data[4],det->H->data[5],det->H->data[6],det->H->data[7],det->H->data[8]);
             }
 
             apriltag_detections_destroy(detections);
