@@ -121,11 +121,14 @@ public:
     template <typename T>
     bool operator()(const T* const RT, T* residual) const {
         /////////////////////////////////////////////////////////////////////////////////
+
         // TODO : 将待优化参数组织成旋转矩阵R1和R2，t1,t2
-        Eigen::Matrix<T,3,3> R1;
-        Eigen::Matrix<T,3,3> R2;
-        Eigen::Matrix<T,3,1> t1;
-        Eigen::Matrix<T,3,1> t2;
+        Eigen::AngleAxis<T> rotation_vec1(RT[0],Eigen::Matrix<T,3,1>(RT[1],RT[2],RT[3]));
+        Eigen::Matrix<T,3,1> t1(RT[4],RT[5],RT[6]);
+        Eigen::AngleAxis<T> rotation_vec2(RT[7],Eigen::Matrix<T,3,1>(RT[8],RT[9],RT[10]));
+        Eigen::Matrix<T,3,1> t2(RT[11],RT[12],RT[13]);
+        Eigen::Matrix<T,3,3> R1 = rotation_vec1.toRotationMatrix();
+        Eigen::Matrix<T,3,3> R2 =rotation_vec2.toRotationMatrix();
 
         /////////////////////////////////////////////////////////////////////////////////
         // todo：构建重投影残差
@@ -543,9 +546,13 @@ void YU12toRGB(std::string &yuv_file_path,cv::Mat &rgb_Img,const int w , const i
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-void poseOptimizationAll(const std::vector<Eigen::Vector3d>& tag1_points, const std::vector<Eigen::Vector3d>& tag2_points,
-                                        const Eigen::Matrix3d &K,std::vector<double>&RT1,std::vector<double>&RT2)
+void poseOptimizationAll(const std::vector<Eigen::Vector3d>& tag1_points, 
+                                             const std::vector<Eigen::Vector3d>& tag2_points,
+                                             const Eigen::Matrix3d &K,
+                                             Eigen::Matrix3d & R1, Eigen::Vector3d & t1,
+                                             Eigen::Matrix3d & R2, Eigen::Vector3d & t2 )
 {
+    // 
     std::vector<Eigen::Vector3d> real_points; 
     real_points.resize(5);
     Eigen::Vector3d tagPoint0(-0.03,0.03,0.0);
@@ -559,15 +566,21 @@ void poseOptimizationAll(const std::vector<Eigen::Vector3d>& tag1_points, const 
     real_points[3]= tagPoint3;
     real_points[4]= tagCenter;
 
-    double RT1_[12] = {RT1[0],RT1[1],RT1[2],RT1[3],RT1[4],RT1[5],RT1[6],RT1[7],RT1[8],RT1[9],RT1[10],RT1[11]};
-    double RT2_[12] = {RT2[0],RT2[1],RT2[2],RT2[3],RT2[4],RT2[5],RT2[6],RT2[7],RT2[8],RT2[9],RT2[10],RT2[11]};
+    // 旋转矩阵转成旋转向量
+    Eigen::AngleAxisd rotation_vec1;
+    rotation_vec1.fromRotationMatrix(R1);
+    Eigen::AngleAxisd rotation_vec2;
+    rotation_vec2.fromRotationMatrix(R2);
+    auto pp = rotation_vec1.axis()[0];
+    double RT_[14] = {rotation_vec1.angle(),rotation_vec1.axis()[0],rotation_vec1.axis()[1],rotation_vec1.axis()[2],t1[0],t1[1],t1[2],
+                                    rotation_vec2.angle(),rotation_vec2.axis()[0],rotation_vec2.axis()[1],rotation_vec2.axis()[2],t2[0],t2[1],t2[2]};
 
     // Build the problem.
     Problem problem;
 
     CostFunctor2 *Cost_functor= new CostFunctor2(tag1_points,tag2_points,real_points,K);
         //ceres自动求导求增量方程<代价函数类型，代价函数维度，优化变量维度>（代价函数）
-    problem.AddResidualBlock(new AutoDiffCostFunction<CostFunctor2,1,12> (Cost_functor), new ceres::CauchyLoss(1),RT1_);
+    problem.AddResidualBlock(new AutoDiffCostFunction<CostFunctor2,2,14> (Cost_functor), new ceres::CauchyLoss(1),RT_);
 
     // Run the solver!
     ceres::Solver::Options solver_options;//实例化求解器对象
@@ -766,6 +779,10 @@ int main(int argc, char *argv[])
         cv::Mat image_with_subpixel_corners = frame1.clone();
         std::vector<Eigen::Vector3d> tag1_points;
         std::vector<Eigen::Vector3d> tag2_points;
+        Eigen::Matrix3d rotationMatrixTag1;
+        Eigen::Matrix3d rotationMatrixTag2;
+        Eigen::Vector3d tranVecTag1;
+        Eigen::Vector3d tranVecTag2;
         std::vector<double> RT1;
         std::vector<double> RT2;
 
@@ -950,7 +967,6 @@ int main(int argc, char *argv[])
 
             if ( det->id == 3 )
             {
-                // 
                 rotation_z_3 << rotation_matrix(0,2) , rotation_matrix(1,2), rotation_matrix(2,2);
                 tag1_points.resize(5);
                 for(int index = 0 ; index < 4; index++ )
@@ -959,6 +975,8 @@ int main(int argc, char *argv[])
                     tmp << double(corners_final[index].x) , double(corners_final[index].y) ,1.0;
                     tag1_points[index] = tmp;
                 }
+                rotationMatrixTag1 = rotation_matrix;
+                tranVecTag1 << double(pose.t->data[0]),double(pose.t->data[1]),double(pose.t->data[2]);
                 Eigen::Vector3d tmp; 
                 tmp << double(det->c[0]),double(det->c[1]),1.0;
                 tag1_points[4] = tmp;
@@ -986,6 +1004,8 @@ int main(int argc, char *argv[])
                 Eigen::Vector3d tmp; 
                 tmp << (double)det->c[0],(double)det->c[1],1.0;
                 tag2_points[4] = tmp;
+                rotationMatrixTag2 = rotation_matrix;
+                tranVecTag2 << double(pose.t->data[0]),double(pose.t->data[1]),double(pose.t->data[2]);
                 RT2.resize(12);
                 for (int index =0; index<9; index++)
                 {
@@ -1060,7 +1080,7 @@ int main(int argc, char *argv[])
         // todo：优化位姿
         if ( id3ready && id6ready )
         {                
-            poseOptimizationAll(tag1_points,tag2_points,K,RT1,RT2);
+            poseOptimizationAll(tag1_points,tag2_points,K,rotationMatrixTag1,tranVecTag1,rotationMatrixTag2,tranVecTag2);
         }
 
         auto t8 = getTime();
