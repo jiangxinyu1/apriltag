@@ -58,6 +58,59 @@ extern "C" {
 using namespace std;
 using namespace cv;
 
+using ceres::CostFunction;
+using ceres::AutoDiffCostFunction;
+using ceres::Problem;
+using ceres::Solve;
+using ceres::Solver;
+
+
+//代价函数计算函数
+template <typename T>
+void reprojectionError( const Eigen::Matrix<T,3,3> &R, //旋转矩阵 R
+                                         const Eigen::Matrix<T,3,1> &t,  // t
+                                         const Eigen::Matrix<T,3,3> &K, // 相机内参
+                                         const Eigen::Matrix<T,3,1> &detect_corner,  // 检测到的角点
+                                         const Eigen::Matrix<T,3,1> &real_corner, // 真实角点
+                                         T &residual ) //代价函数变量
+{
+    T forward_error[2];
+    auto tmp = K*(R* real_corner + t);
+    // 重投影误差归一化
+    tmp /= tmp(2,0); 
+    forward_error[0] = detect_corner(0,0) - tmp(0,0);
+    forward_error[1] = detect_corner(1,0) - tmp(1,0);
+    //计算重投影误差的二范数作为代价函数误差
+    residual=forward_error[0]*forward_error[0]+forward_error[1]*forward_error[1];
+}
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+class CostFunctor{
+public:
+    CostFunctor(const Eigen::Vector3d& tag_corner, const Eigen::Vector3d& real_corner, const Eigen::Matrix3d& K):
+        tag_corner_(tag_corner), real_corner_(real_corner), K_(K){}
+
+    template <typename T>
+    bool operator()(const T* const RT, T* residual) const {
+
+        Eigen::Matrix<T,3,3> rotation_matrix;
+        rotation_matrix << RT[0],RT[1],RT[2],RT[3],RT[4],RT[5],RT[6],RT[7],RT[8];
+        Eigen::Matrix<T,3,1> trans_vector;
+        trans_vector << RT[9],RT[10],RT[11];
+        Eigen::Matrix<T,3,1> detect_corner;
+        detect_corner << tag_corner_[0],tag_corner_[1],tag_corner_[2];
+        Eigen::Matrix<T,3,1> real_corner;
+        real_corner << real_corner_[0],real_corner_[1],real_corner_[2];
+        reprojectionError<T>(rotation_matrix,trans_vector,K_,detect_corner,real_corner,residual[0]);
+        return true;
+    }
+private:
+    const Eigen::Vector3d tag_corner_;
+    const Eigen::Vector3d real_corner_;
+    const Eigen::Matrix3d K_;
+};
+
 bool blShowImage = false;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -88,6 +141,8 @@ void myImageDistorted(cv::Mat &src , cv::Mat &image_undistort,const std::vector<
 cv::Mat ComputeH(const vector<cv::Point2f> &vP1, const vector<cv::Point2f> &vP2);
 void homography_compute3(double c[4][4] , Eigen::Matrix3d &H);
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void homography_compute3(double c[4][4] , Eigen::Matrix3d &H) {
     
     double A[] =  {
