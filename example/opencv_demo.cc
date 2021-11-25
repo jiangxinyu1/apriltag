@@ -70,14 +70,15 @@ template <typename T>
 void reprojectionError( const Eigen::Matrix<T,3,3> &R, //旋转矩阵 R
                                          const Eigen::Matrix<T,3,1> &t,  // t
                                          const Eigen::Matrix<T,3,3> &K, // 相机内参
-                                         const Eigen::Matrix<T,3,1> &detect_corner,  // 检测到的角点
-                                         const Eigen::Matrix<T,3,1> &real_corner, // 真实角点
-                                         T &residual ) //代价函数变量
+                                         const Eigen::Matrix<double,3,1> &detect_corner,  // 检测到的角点
+                                         const Eigen::Matrix<double,3,1> &real_corner, // 真实角点
+                                         double &residual )//代价函数变量
 {
     T forward_error[2];
-    auto tmp = K*(R* real_corner + t);
-    // 重投影误差归一化
-    tmp /= tmp(2,0); 
+    Eigen::Matrix<T,3,1> tmp= K*(R* real_corner + t);
+    // // 重投影误差归一化
+    tmp(0,0) = tmp(0,0)/tmp(2,0);
+    tmp(1,0) = tmp(1,0)/tmp(2,0);
     forward_error[0] = detect_corner(0,0) - tmp(0,0);
     forward_error[1] = detect_corner(1,0) - tmp(1,0);
     //计算重投影误差的二范数作为代价函数误差
@@ -98,17 +99,33 @@ public:
         rotation_matrix << RT[0],RT[1],RT[2],RT[3],RT[4],RT[5],RT[6],RT[7],RT[8];
         Eigen::Matrix<T,3,1> trans_vector;
         trans_vector << RT[9],RT[10],RT[11];
-        Eigen::Matrix<T,3,1> detect_corner;
+        Eigen::Matrix<double,3,1> detect_corner;
         detect_corner << tag_corner_[0],tag_corner_[1],tag_corner_[2];
-        Eigen::Matrix<T,3,1> real_corner;
+        Eigen::Matrix<double,3,1> real_corner;
         real_corner << real_corner_[0],real_corner_[1],real_corner_[2];
-        reprojectionError<T>(rotation_matrix,trans_vector,K_,detect_corner,real_corner,residual[0]);
+        // double asd;
+        // reprojectionError<double>(rotation_matrix,trans_vector,K_,detect_corner,real_corner,asd);
+        // residual[0] = asd;
+        // 
+#if 1        
+        T forward_error[2];
+        Eigen::Matrix<T,3,1> tmp= K_*(rotation_matrix* real_corner + trans_vector);
+        // auto tmp = K_*(rotation_matrix* real_corner + trans_vector);
+
+        // 重投影误差归一化
+        tmp(0,0) = tmp(0,0) / tmp(2,0);
+        tmp(1,0) = tmp(1,0) / tmp(2,0);
+        forward_error[0] = detect_corner(0,0) - tmp(0,0);
+        forward_error[1] = detect_corner(1,0) - tmp(1,0);
+        //计算重投影误差的二范数作为代价函数误差
+        residual[0]=forward_error[0]*forward_error[0]+forward_error[1]*forward_error[1];
+ #endif       
         return true;
     }
 private:
-    const Eigen::Vector3d tag_corner_;
-    const Eigen::Vector3d real_corner_;
-    const Eigen::Matrix3d K_;
+    Eigen::Vector3d tag_corner_;
+    Eigen::Vector3d real_corner_;
+    Eigen::Matrix3d K_;
 };
 
 bool blShowImage = false;
@@ -205,52 +222,6 @@ void homography_compute3(double c[4][4] , Eigen::Matrix3d &H) {
     // matd_t* tmp =  matd_create_data(3, 3, (double[]) { A[8], A[17], A[26], A[35], A[44], A[53], A[62], A[71], 1 });
     H << A[8], A[17], A[26], A[35], A[44], A[53], A[62], A[71], 1;
 }
-
-/**
- * @brief 从特征点匹配求homography（normalized DLT）
- * 
- * @param  vP1 归一化后的点, in reference frame
- * @param  vP2 归一化后的点, in current frame
- * @return     单应矩阵
- * @see        Multiple View Geometry in Computer Vision - Algorithm 4.2 p109
- */
-    cv::Mat ComputeH(const vector<cv::Point2f> &vP1, const vector<cv::Point2f> &vP2) 
-    {
-        const int N = vP1.size();
-
-        cv::Mat A(2 * N, 9, CV_32F); // 2N*9  N=8
-
-        for (int i = 0; i < N; i++)
-        {
-            const float u1 = vP1[i].x;
-            const float v1 = vP1[i].y;
-            const float u2 = vP2[i].x;
-            const float v2 = vP2[i].y;
-            //第一行
-            A.at<float>(2 * i, 0) = 0.0;
-            A.at<float>(2 * i, 1) = 0.0;
-            A.at<float>(2 * i, 2) = 0.0;
-            A.at<float>(2 * i, 3) = -u1;
-            A.at<float>(2 * i, 4) = -v1;
-            A.at<float>(2 * i, 5) = -1;
-            A.at<float>(2 * i, 6) = v2 * u1;
-            A.at<float>(2 * i, 7) = v2 * v1;
-            A.at<float>(2 * i, 8) = v2;
-            //第二行
-            A.at<float>(2 * i + 1, 0) = u1;
-            A.at<float>(2 * i + 1, 1) = v1;
-            A.at<float>(2 * i + 1, 2) = 1;
-            A.at<float>(2 * i + 1, 3) = 0.0;
-            A.at<float>(2 * i + 1, 4) = 0.0;
-            A.at<float>(2 * i + 1, 5) = 0.0;
-            A.at<float>(2 * i + 1, 6) = -u2 * u1;
-            A.at<float>(2 * i + 1, 7) = -u2 * v1;
-            A.at<float>(2 * i + 1, 8) = -u2;
-        }
-        cv::Mat u, w, vt;
-        cv::SVDecomp(A, w, u, vt, cv::SVD::MODIFY_A | cv::SVD::FULL_UV);
-        return vt.row(8).reshape(0, 3); // vt的最后一行 即v的最后一列
-    }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void preBuildDistortedLookupTable(std::vector<std::vector<distortion_uv >> &lookupTable,const int width, const int height)
@@ -511,7 +482,7 @@ void YU12toRGB(std::string &yuv_file_path,cv::Mat &rgb_Img,const int w , const i
 void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points, const std::vector<Eigen::Vector3d>& tag2_points,
                                         const Eigen::Matrix3d &K,std::vector<double>&RT1,std::vector<double>&RT2)
 {
-    static std::vector<Eigen::Vector3d>& real_points; 
+    std::vector<Eigen::Vector3d> real_points; 
     real_points.resize(5);
     Eigen::Vector3d tagPoint0(-0.03,0.03,0.0);
     Eigen::Vector3d tagPoint1(0.03,0.03,0.0);
@@ -522,27 +493,29 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points, const std
     real_points[1]= tagPoint1;
     real_points[2]= tagPoint2;
     real_points[3]= tagPoint3;
-    real_points[4]= tagPoint4;    
+    real_points[4]= tagCenter;
+
+    double RT1_[12] = {RT1[0],RT1[1],RT1[2],RT1[3],RT1[4],RT1[5],RT1[6],RT1[7],RT1[8],RT1[9],RT1[10],RT1[11]};
+    double RT2_[12] = {RT2[0],RT2[1],RT2[2],RT2[3],RT2[4],RT2[5],RT2[6],RT2[7],RT2[8],RT2[9],RT2[10],RT2[11]};
+
     
     // Build the problem.
     Problem problem;
 
-    // Set up the only cost function (also known as residual). This uses
-    // add tag1 
     for(int i = 0 ; i < 4; i++)
     {
         CostFunctor *RT1_cost_functor= new CostFunctor(tag1_points[i],real_points[i],K);
         //ceres自动求导求增量方程<代价函数类型，代价函数维度，优化变量维度>（代价函数）
         problem.AddResidualBlock(        
-                new AutoDiffCostFunction<CostFunctor,1,12> (RT1_cost_functor), new ceres::CauchyLoss(1),RT1.data());
+                new AutoDiffCostFunction<CostFunctor,1,12> (RT1_cost_functor), new ceres::CauchyLoss(1),RT1_);
     }
-    // add tag2
+    // // add tag2
     for(int i = 0 ; i < 4; i++)
     {
         CostFunctor *RT2_cost_functor= new CostFunctor(tag2_points[i],real_points[i],K);
         //ceres自动求导求增量方程<代价函数类型，代价函数维度，优化变量维度>（代价函数）
         problem.AddResidualBlock(        
-                new AutoDiffCostFunction<CostFunctor,1,12> (RT2_cost_functor), new ceres::CauchyLoss(1),RT2.data());
+                new AutoDiffCostFunction<CostFunctor,1,12> (RT2_cost_functor), new ceres::CauchyLoss(1),RT2_);
     }
     // Run the solver!
     ceres::Solver::Options solver_options;//实例化求解器对象
@@ -555,6 +528,7 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points, const std
     ceres::Solver::Summary summary;
     //求解
     ceres::Solve(solver_options,&problem,&summary);
+
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -571,6 +545,8 @@ int main(int argc, char *argv[])
     std::string path = "/home/xinyu/workspace/360/OFei-RGB/yuv2rgb/pic/";
 
     getopt_t *getopt = getopt_create();
+
+    Eigen::Matrix3d K ;
 
     getopt_add_bool(getopt, 'h', "help", 0, "Show this help");
     getopt_add_bool(getopt, 'd', "debug", 0, "Enable debugging output (slow)");
@@ -687,8 +663,10 @@ int main(int argc, char *argv[])
         cv::Mat image_with_init_corners = frame1.clone();
         cv::Mat image_with_gftt_corners = frame1.clone();
         cv::Mat image_with_subpixel_corners = frame1.clone();
-        
-
+        std::vector<Eigen::Vector3d> tag1_points;
+        std::vector<Eigen::Vector3d> tag2_points;
+        std::vector<double> RT1;
+        std::vector<double> RT2;
 
         /*  
         *   遍历每个的检测结果
@@ -880,20 +858,20 @@ int main(int argc, char *argv[])
                 for(int index = 0 ; index < 4; index++ )
                 {
                     Eigen::Vector3d tmp;
-                    tmp << (double)corners_final[index].x , (double)corners_final[index].y,1.0;
+                    tmp << double(corners_final[index].x) , double(corners_final[index].y) ,1.0;
                     tag1_points[index] = tmp;
                 }
                 Eigen::Vector3d tmp; 
-                tmp << det->c[0],det->c[1],1.0;
+                tmp << double(det->c[0]),double(det->c[1]),1.0;
                 tag1_points[4] = tmp;
                 RT1.resize(12);
                 for (int index =0; index<9; index++)
                 {
-                    RT1[index] = pose.R->data[index];
+                    RT1[index] = double(pose.R->data[index]);
                 }
                 for (int index =9; index<12; index++)
                 {
-                    RT1[index] = pose.t->data[index];
+                    RT1[index] = double(pose.t->data[index]);
                 }
                 id3ready = true;
             }
@@ -908,16 +886,16 @@ int main(int argc, char *argv[])
                     tag2_points[index] = tmp;
                 }
                 Eigen::Vector3d tmp; 
-                tmp << det->c[0],det->c[1],1.0;
+                tmp << (double)det->c[0],(double)det->c[1],1.0;
                 tag2_points[4] = tmp;
                 RT2.resize(12);
                 for (int index =0; index<9; index++)
                 {
-                    RT2[index] = pose.R->data[index];
+                    RT2[index] = (double)pose.R->data[index];
                 }
                 for (int index =9; index<12; index++)
                 {
-                    RT2[index] = pose.t->data[index];
+                    RT2[index] = (double)pose.t->data[index];
                 }
                 id6ready = true;
             }
@@ -925,7 +903,7 @@ int main(int argc, char *argv[])
 
             auto reprojection = [&]()
             {
-                Eigen::Matrix3d K ;
+                
                 K << info.fx,0,info.cx,0,info.fy,info.cy,0,0,1;
                 Eigen::Vector3d transform_vector;
                 transform_vector << pose.t->data[0],pose.t->data[1],pose.t->data[2];
@@ -981,6 +959,11 @@ int main(int argc, char *argv[])
         printEstimateTagPose();
 
         // todo：优化位姿
+        if ( id3ready && id6ready )
+        {                
+            poseOptimization(tag1_points,tag2_points,K,RT1,RT2);
+        }
+        
 
 
         auto t8 = getTime();

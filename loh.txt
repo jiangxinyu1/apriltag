@@ -1,0 +1,13 @@
+Configuring and building  on PC...
+-- Found required Ceres dependency: Eigen version 3.3.4 in /usr/include/eigen3
+-- Found required Ceres dependency: glog
+-- Found required Ceres dependency: gflags
+-- Found Ceres version: 2.0.0 installed in: /usr/local with components: [EigenSparse, SparseLinearAlgebraLibrary, LAPACK, SuiteSparse, CXSparse, SchurSpecializations, Multithreading]
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/xinyu/workspace/360/apriltag/buildPc
+[ 94%] Built target apriltag
+[ 97%] Building CXX object CMakeFiles/opencv_demo.dir/example/opencv_demo.cc.o
+CMakeFiles/opencv_demo.dir/build.make:62: recipe for target 'CMakeFiles/opencv_demo.dir/example/opencv_demo.cc.o' failed
+CMakeFiles/Makefile2:67: recipe for target 'CMakeFiles/opencv_demo.dir/all' failed
+Makefile:129: recipe for target 'all' failed
