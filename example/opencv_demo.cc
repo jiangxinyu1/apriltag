@@ -508,6 +508,56 @@ void YU12toRGB(std::string &yuv_file_path,cv::Mat &rgb_Img,const int w , const i
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points, const std::vector<Eigen::Vector3d>& tag2_points,
+                                        const Eigen::Matrix3d &K,std::vector<double>&RT1,std::vector<double>&RT2)
+{
+    static std::vector<Eigen::Vector3d>& real_points; 
+    real_points.resize(5);
+    Eigen::Vector3d tagPoint0(-0.03,0.03,0.0);
+    Eigen::Vector3d tagPoint1(0.03,0.03,0.0);
+    Eigen::Vector3d tagPoint2(0.03,-0.03,0.0);
+    Eigen::Vector3d tagPoint3(-0.03,-0.03,0.0);
+    Eigen::Vector3d tagCenter(0.0,0.0,0.0);
+    real_points[0]= tagPoint0;
+    real_points[1]= tagPoint1;
+    real_points[2]= tagPoint2;
+    real_points[3]= tagPoint3;
+    real_points[4]= tagPoint4;    
+    
+    // Build the problem.
+    Problem problem;
+
+    // Set up the only cost function (also known as residual). This uses
+    // add tag1 
+    for(int i = 0 ; i < 4; i++)
+    {
+        CostFunctor *RT1_cost_functor= new CostFunctor(tag1_points[i],real_points[i],K);
+        //ceres自动求导求增量方程<代价函数类型，代价函数维度，优化变量维度>（代价函数）
+        problem.AddResidualBlock(        
+                new AutoDiffCostFunction<CostFunctor,1,12> (RT1_cost_functor), new ceres::CauchyLoss(1),RT1.data());
+    }
+    // add tag2
+    for(int i = 0 ; i < 4; i++)
+    {
+        CostFunctor *RT2_cost_functor= new CostFunctor(tag2_points[i],real_points[i],K);
+        //ceres自动求导求增量方程<代价函数类型，代价函数维度，优化变量维度>（代价函数）
+        problem.AddResidualBlock(        
+                new AutoDiffCostFunction<CostFunctor,1,12> (RT2_cost_functor), new ceres::CauchyLoss(1),RT2.data());
+    }
+    // Run the solver!
+    ceres::Solver::Options solver_options;//实例化求解器对象
+    //线性求解器的类型，用于计算Levenberg-Marquardt算法每次迭代中线性最小二乘问题的解
+    solver_options.linear_solver_type=ceres::DENSE_QR;
+    //记录优化过程，输出到cout位置
+    solver_options.minimizer_progress_to_stdout= true;
+    //ceres求解运算
+    //实例化求解对象
+    ceres::Solver::Summary summary;
+    //求解
+    ceres::Solve(solver_options,&problem,&summary);
+}
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -822,15 +872,53 @@ int main(int argc, char *argv[])
             // print eulerAngle
             // printf("Angles =  %f, %f ,%f\n",eulerAngle[2]*180/3.14159,eulerAngle[1]*180/3.14159,eulerAngle[0]*180/3.14159);
 
-
             if ( det->id == 3 )
             {
+                // 
                 rotation_z_3 << rotation_matrix(0,2) , rotation_matrix(1,2), rotation_matrix(2,2);
+                tag1_points.resize(5);
+                for(int index = 0 ; index < 4; index++ )
+                {
+                    Eigen::Vector3d tmp;
+                    tmp << (double)corners_final[index].x , (double)corners_final[index].y,1.0;
+                    tag1_points[index] = tmp;
+                }
+                Eigen::Vector3d tmp; 
+                tmp << det->c[0],det->c[1],1.0;
+                tag1_points[4] = tmp;
+                RT1.resize(12);
+                for (int index =0; index<9; index++)
+                {
+                    RT1[index] = pose.R->data[index];
+                }
+                for (int index =9; index<12; index++)
+                {
+                    RT1[index] = pose.t->data[index];
+                }
                 id3ready = true;
             }
             if ( det->id == 6 )
             {
                 rotation_z_6 << rotation_matrix(0,2), rotation_matrix(1,2), rotation_matrix(2,2);
+                tag2_points.resize(5);
+                for(int index = 0 ; index < 4; index++ )
+                {
+                    Eigen::Vector3d tmp;
+                    tmp << (double)corners_final[index].x , (double)corners_final[index].y,1.0;
+                    tag2_points[index] = tmp;
+                }
+                Eigen::Vector3d tmp; 
+                tmp << det->c[0],det->c[1],1.0;
+                tag2_points[4] = tmp;
+                RT2.resize(12);
+                for (int index =0; index<9; index++)
+                {
+                    RT2[index] = pose.R->data[index];
+                }
+                for (int index =9; index<12; index++)
+                {
+                    RT2[index] = pose.t->data[index];
+                }
                 id6ready = true;
             }
             
@@ -891,6 +979,8 @@ int main(int argc, char *argv[])
             }
         };
         printEstimateTagPose();
+
+        // todo：优化位姿
 
 
         auto t8 = getTime();
