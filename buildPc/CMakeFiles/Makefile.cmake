@@ -12,6 +12,18 @@ set(CMAKE_MAKEFILE_DEPENDS
   "CMakeFiles/3.10.2/CMakeCCompiler.cmake"
   "CMakeFiles/3.10.2/CMakeCXXCompiler.cmake"
   "CMakeFiles/3.10.2/CMakeSystem.cmake"
+  "/usr/lib/cmake/eigen3/Eigen3Config.cmake"
+  "/usr/lib/cmake/eigen3/Eigen3ConfigVersion.cmake"
+  "/usr/lib/cmake/eigen3/Eigen3Targets.cmake"
+  "/usr/lib/x86_64-linux-gnu/cmake/gflags/gflags-config-version.cmake"
+  "/usr/lib/x86_64-linux-gnu/cmake/gflags/gflags-config.cmake"
+  "/usr/lib/x86_64-linux-gnu/cmake/gflags/gflags-targets-release.cmake"
+  "/usr/lib/x86_64-linux-gnu/cmake/gflags/gflags-targets.cmake"
+  "/usr/local/lib/cmake/Ceres/CeresConfig.cmake"
+  "/usr/local/lib/cmake/Ceres/CeresConfigVersion.cmake"
+  "/usr/local/lib/cmake/Ceres/CeresTargets-release.cmake"
+  "/usr/local/lib/cmake/Ceres/CeresTargets.cmake"
+  "/usr/local/lib/cmake/Ceres/FindGlog.cmake"
   "/usr/share/OpenCV/OpenCVConfig-version.cmake"
   "/usr/share/OpenCV/OpenCVConfig.cmake"
   "/usr/share/OpenCV/OpenCVModules-release.cmake"
@@ -20,6 +32,7 @@ set(CMAKE_MAKEFILE_DEPENDS
   "/usr/share/cmake-3.10/Modules/CMakeCInformation.cmake"
   "/usr/share/cmake-3.10/Modules/CMakeCXXInformation.cmake"
   "/usr/share/cmake-3.10/Modules/CMakeCommonLanguageInclude.cmake"
+  "/usr/share/cmake-3.10/Modules/CMakeFindDependencyMacro.cmake"
   "/usr/share/cmake-3.10/Modules/CMakeFindFrameworks.cmake"
   "/usr/share/cmake-3.10/Modules/CMakeGenericSystem.cmake"
   "/usr/share/cmake-3.10/Modules/CMakeLanguageInformation.cmake"
@@ -62,7 +75,6 @@ set(CMAKE_MAKEFILE_PRODUCTS
 
 # Dependency information for all targets:
 set(CMAKE_DEPEND_INFO_FILES
-  "CMakeFiles/apriltag_demo.dir/DependInfo.cmake"
-  "CMakeFiles/apriltag.dir/DependInfo.cmake"
   "CMakeFiles/opencv_demo.dir/DependInfo.cmake"
+  "CMakeFiles/apriltag.dir/DependInfo.cmake"
   )

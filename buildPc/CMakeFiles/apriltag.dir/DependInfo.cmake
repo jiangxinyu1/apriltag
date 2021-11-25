@@ -43,6 +43,9 @@ set(CMAKE_C_TARGET_INCLUDE_PATH
   "../"
   "/apriltag"
   "/usr/include/opencv"
+  "../src/thirdParty"
+  "/include"
+  "/include/opencv2"
   "/usr/include/eigen3"
   )
 

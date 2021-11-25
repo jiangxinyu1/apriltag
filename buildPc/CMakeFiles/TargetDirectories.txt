@@ -1,9 +1,8 @@
 /home/xinyu/workspace/360/apriltag/buildPc/CMakeFiles/install/local.dir
-/home/xinyu/workspace/360/apriltag/buildPc/CMakeFiles/install.dir
-/home/xinyu/workspace/360/apriltag/buildPc/CMakeFiles/apriltag_demo.dir
-/home/xinyu/workspace/360/apriltag/buildPc/CMakeFiles/edit_cache.dir
-/home/xinyu/workspace/360/apriltag/buildPc/CMakeFiles/apriltag.dir
 /home/xinyu/workspace/360/apriltag/buildPc/CMakeFiles/install/strip.dir
 /home/xinyu/workspace/360/apriltag/buildPc/CMakeFiles/opencv_demo.dir
+/home/xinyu/workspace/360/apriltag/buildPc/CMakeFiles/apriltag.dir
+/home/xinyu/workspace/360/apriltag/buildPc/CMakeFiles/install.dir
+/home/xinyu/workspace/360/apriltag/buildPc/CMakeFiles/edit_cache.dir
 /home/xinyu/workspace/360/apriltag/buildPc/CMakeFiles/rebuild_cache.dir
 /home/xinyu/workspace/360/apriltag/buildPc/CMakeFiles/list_install_components.dir

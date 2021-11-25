@@ -117,6 +117,7 @@ opencv_demo: /usr/lib/x86_64-linux-gnu/libopencv_text.so.3.2.0
 opencv_demo: /usr/lib/x86_64-linux-gnu/libopencv_ximgproc.so.3.2.0
 opencv_demo: /usr/lib/x86_64-linux-gnu/libopencv_xobjdetect.so.3.2.0
 opencv_demo: /usr/lib/x86_64-linux-gnu/libopencv_xphoto.so.3.2.0
+opencv_demo: /usr/local/lib/libceres.a
 opencv_demo: /usr/lib/x86_64-linux-gnu/libopencv_video.so.3.2.0
 opencv_demo: /usr/lib/x86_64-linux-gnu/libopencv_viz.so.3.2.0
 opencv_demo: /usr/lib/x86_64-linux-gnu/libopencv_phase_unwrapping.so.3.2.0
@@ -132,6 +133,25 @@ opencv_demo: /usr/lib/x86_64-linux-gnu/libopencv_videoio.so.3.2.0
 opencv_demo: /usr/lib/x86_64-linux-gnu/libopencv_imgcodecs.so.3.2.0
 opencv_demo: /usr/lib/x86_64-linux-gnu/libopencv_imgproc.so.3.2.0
 opencv_demo: /usr/lib/x86_64-linux-gnu/libopencv_core.so.3.2.0
+opencv_demo: /usr/lib/x86_64-linux-gnu/libglog.so
+opencv_demo: /usr/lib/x86_64-linux-gnu/libgflags.so.2.2.1
+opencv_demo: /usr/lib/x86_64-linux-gnu/libspqr.so
+opencv_demo: /usr/lib/x86_64-linux-gnu/libtbb.so
+opencv_demo: /usr/lib/x86_64-linux-gnu/libcholmod.so
+opencv_demo: /usr/lib/x86_64-linux-gnu/libccolamd.so
+opencv_demo: /usr/lib/x86_64-linux-gnu/libcamd.so
+opencv_demo: /usr/lib/x86_64-linux-gnu/libcolamd.so
+opencv_demo: /usr/lib/x86_64-linux-gnu/libamd.so
+opencv_demo: /usr/lib/x86_64-linux-gnu/liblapack.so
+opencv_demo: /usr/lib/x86_64-linux-gnu/libblas.so
+opencv_demo: /usr/lib/x86_64-linux-gnu/libsuitesparseconfig.so
+opencv_demo: /usr/lib/x86_64-linux-gnu/librt.so
+opencv_demo: /usr/lib/x86_64-linux-gnu/libcxsparse.so
+opencv_demo: /usr/lib/x86_64-linux-gnu/liblapack.so
+opencv_demo: /usr/lib/x86_64-linux-gnu/libblas.so
+opencv_demo: /usr/lib/x86_64-linux-gnu/libsuitesparseconfig.so
+opencv_demo: /usr/lib/x86_64-linux-gnu/librt.so
+opencv_demo: /usr/lib/x86_64-linux-gnu/libcxsparse.so
 opencv_demo: CMakeFiles/opencv_demo.dir/link.txt
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/xinyu/workspace/360/apriltag/buildPc/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX executable opencv_demo"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/opencv_demo.dir/link.txt --verbose=$(VERBOSE)

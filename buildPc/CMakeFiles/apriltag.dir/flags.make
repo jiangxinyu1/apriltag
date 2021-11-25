@@ -6,5 +6,5 @@ C_FLAGS = -O3 -DNDEBUG -fPIC
 
 C_DEFINES = -Dapriltag_EXPORTS
 
-C_INCLUDES = -I/home/xinyu/workspace/360/apriltag -I/apriltag -I/usr/include/opencv -I/usr/include/eigen3 
+C_INCLUDES = -I/home/xinyu/workspace/360/apriltag -I/apriltag -I/usr/include/opencv -I/home/xinyu/workspace/360/apriltag/src/thirdParty -I/include -I/include/opencv2 -I/usr/include/eigen3 
 

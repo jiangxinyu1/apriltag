@@ -68,6 +68,18 @@ install/local/fast: preinstall/fast
 	/usr/bin/cmake -DCMAKE_INSTALL_LOCAL_ONLY=1 -P cmake_install.cmake
 .PHONY : install/local/fast
 
+# Special rule for the target install/strip
+install/strip: preinstall
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Installing the project stripped..."
+	/usr/bin/cmake -DCMAKE_INSTALL_DO_STRIP=1 -P cmake_install.cmake
+.PHONY : install/strip
+
+# Special rule for the target install/strip
+install/strip/fast: preinstall/fast
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Installing the project stripped..."
+	/usr/bin/cmake -DCMAKE_INSTALL_DO_STRIP=1 -P cmake_install.cmake
+.PHONY : install/strip/fast
+
 # Special rule for the target install
 install: preinstall
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Install the project..."
@@ -90,18 +102,6 @@ edit_cache:
 edit_cache/fast: edit_cache
 
 .PHONY : edit_cache/fast
-
-# Special rule for the target install/strip
-install/strip: preinstall
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Installing the project stripped..."
-	/usr/bin/cmake -DCMAKE_INSTALL_DO_STRIP=1 -P cmake_install.cmake
-.PHONY : install/strip
-
-# Special rule for the target install/strip
-install/strip/fast: preinstall/fast
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Installing the project stripped..."
-	/usr/bin/cmake -DCMAKE_INSTALL_DO_STRIP=1 -P cmake_install.cmake
-.PHONY : install/strip/fast
 
 # Special rule for the target rebuild_cache
 rebuild_cache:
@@ -157,17 +157,17 @@ depend:
 .PHONY : depend
 
 #=============================================================================
-# Target rules for targets named apriltag_demo
+# Target rules for targets named opencv_demo
 
 # Build rule for target.
-apriltag_demo: cmake_check_build_system
-	$(MAKE) -f CMakeFiles/Makefile2 apriltag_demo
-.PHONY : apriltag_demo
+opencv_demo: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 opencv_demo
+.PHONY : opencv_demo
 
 # fast build rule for target.
-apriltag_demo/fast:
-	$(MAKE) -f CMakeFiles/apriltag_demo.dir/build.make CMakeFiles/apriltag_demo.dir/build
-.PHONY : apriltag_demo/fast
+opencv_demo/fast:
+	$(MAKE) -f CMakeFiles/opencv_demo.dir/build.make CMakeFiles/opencv_demo.dir/build
+.PHONY : opencv_demo/fast
 
 #=============================================================================
 # Target rules for targets named apriltag
@@ -181,19 +181,6 @@ apriltag: cmake_check_build_system
 apriltag/fast:
 	$(MAKE) -f CMakeFiles/apriltag.dir/build.make CMakeFiles/apriltag.dir/build
 .PHONY : apriltag/fast
-
-#=============================================================================
-# Target rules for targets named opencv_demo
-
-# Build rule for target.
-opencv_demo: cmake_check_build_system
-	$(MAKE) -f CMakeFiles/Makefile2 opencv_demo
-.PHONY : opencv_demo
-
-# fast build rule for target.
-opencv_demo/fast:
-	$(MAKE) -f CMakeFiles/opencv_demo.dir/build.make CMakeFiles/opencv_demo.dir/build
-.PHONY : opencv_demo/fast
 
 apriltag.o: apriltag.c.o
 
@@ -789,33 +776,6 @@ common/zmaxheap.c.s:
 	$(MAKE) -f CMakeFiles/apriltag.dir/build.make CMakeFiles/apriltag.dir/common/zmaxheap.c.s
 .PHONY : common/zmaxheap.c.s
 
-example/apriltag_demo.o: example/apriltag_demo.c.o
-
-.PHONY : example/apriltag_demo.o
-
-# target to build an object file
-example/apriltag_demo.c.o:
-	$(MAKE) -f CMakeFiles/apriltag_demo.dir/build.make CMakeFiles/apriltag_demo.dir/example/apriltag_demo.c.o
-.PHONY : example/apriltag_demo.c.o
-
-example/apriltag_demo.i: example/apriltag_demo.c.i
-
-.PHONY : example/apriltag_demo.i
-
-# target to preprocess a source file
-example/apriltag_demo.c.i:
-	$(MAKE) -f CMakeFiles/apriltag_demo.dir/build.make CMakeFiles/apriltag_demo.dir/example/apriltag_demo.c.i
-.PHONY : example/apriltag_demo.c.i
-
-example/apriltag_demo.s: example/apriltag_demo.c.s
-
-.PHONY : example/apriltag_demo.s
-
-# target to generate assembly for a file
-example/apriltag_demo.c.s:
-	$(MAKE) -f CMakeFiles/apriltag_demo.dir/build.make CMakeFiles/apriltag_demo.dir/example/apriltag_demo.c.s
-.PHONY : example/apriltag_demo.c.s
-
 example/opencv_demo.o: example/opencv_demo.cc.o
 
 .PHONY : example/opencv_demo.o
@@ -1093,12 +1053,11 @@ help:
 	@echo "... clean"
 	@echo "... depend"
 	@echo "... install/local"
-	@echo "... install"
-	@echo "... apriltag_demo"
-	@echo "... edit_cache"
-	@echo "... apriltag"
 	@echo "... install/strip"
 	@echo "... opencv_demo"
+	@echo "... apriltag"
+	@echo "... install"
+	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... list_install_components"
 	@echo "... apriltag.o"
@@ -1167,9 +1126,6 @@ help:
 	@echo "... common/zmaxheap.o"
 	@echo "... common/zmaxheap.i"
 	@echo "... common/zmaxheap.s"
-	@echo "... example/apriltag_demo.o"
-	@echo "... example/apriltag_demo.i"
-	@echo "... example/apriltag_demo.s"
 	@echo "... example/opencv_demo.o"
 	@echo "... example/opencv_demo.i"
 	@echo "... example/opencv_demo.s"

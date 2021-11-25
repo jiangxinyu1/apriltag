@@ -234,8 +234,23 @@ CMAKE_STRIP:FILEPATH=/usr/bin/strip
 // Studio IDE projects all commands are done without /nologo.
 CMAKE_VERBOSE_MAKEFILE:BOOL=FALSE
 
+//The directory containing a CMake configuration file for Ceres.
+Ceres_DIR:PATH=/usr/local/lib/cmake/Ceres
+
+//The directory containing a CMake configuration file for Eigen3.
+Eigen3_DIR:PATH=/usr/lib/cmake/eigen3
+
+//Path to a file.
+GLOG_INCLUDE_DIR:PATH=/usr/include
+
+//Path to a library.
+GLOG_LIBRARY:FILEPATH=/usr/lib/x86_64-linux-gnu/libglog.so
+
 //The directory containing a CMake configuration file for OpenCV.
 OpenCV_DIR:PATH=/usr/share/OpenCV
+
+//Path to a file.
+OpenCV_INCLUDE_DIRS:PATH=/usr/include
 
 //Path to a file.
 PYTHON_INCLUDE_DIR:PATH=/usr/include/python3.6m
@@ -254,6 +269,24 @@ apriltag_LIB_DEPENDS:STATIC=general;m;
 
 //Value Computed by CMake
 apriltag_SOURCE_DIR:STATIC=/home/xinyu/workspace/360/apriltag
+
+//The directory containing a CMake configuration file for gflags.
+gflags_DIR:PATH=/usr/lib/x86_64-linux-gnu/cmake/gflags
+
+//Path to a library.
+opencv_core_lib:FILEPATH=/usr/lib/x86_64-linux-gnu/libopencv_core.so
+
+//Path to a library.
+opencv_highgui_lib:FILEPATH=/usr/lib/x86_64-linux-gnu/libopencv_highgui.so
+
+//Path to a library.
+opencv_imgcodecs_lib:FILEPATH=/usr/lib/x86_64-linux-gnu/libopencv_imgcodecs.so
+
+//Path to a library.
+opencv_imgproc_lib:FILEPATH=/usr/lib/x86_64-linux-gnu/libopencv_imgproc.so
+
+//Path to a library.
+opencv_videoio_lib:FILEPATH=/usr/lib/x86_64-linux-gnu/libopencv_videoio.so
 
 
 ########################
@@ -445,6 +478,12 @@ FIND_PACKAGE_MESSAGE_DETAILS_OpenCV:INTERNAL=[/usr][v3.2.0()]
 FIND_PACKAGE_MESSAGE_DETAILS_PythonLibs:INTERNAL=[/usr/lib/x86_64-linux-gnu/libpython3.6m.so][/usr/include/python3.6m][v3.6.9()]
 //Details about finding Threads
 FIND_PACKAGE_MESSAGE_DETAILS_Threads:INTERNAL=[TRUE][v()]
+//ADVANCED property for variable: GLOG_INCLUDE_DIR
+GLOG_INCLUDE_DIR-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: GLOG_LIBRARY
+GLOG_LIBRARY-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: OpenCV_INCLUDE_DIRS
+OpenCV_INCLUDE_DIRS-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: PYTHON_INCLUDE_DIR
 PYTHON_INCLUDE_DIR-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: PYTHON_LIBRARY

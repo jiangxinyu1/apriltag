@@ -35,6 +35,7 @@ either expressed or implied, of the Regents of The University of Michigan.
 #include "opencv2/highgui.hpp"
 #include <Eigen/Core>
 #include <Eigen/Geometry>
+#include <ceres/ceres.h>
 
 extern "C" {
 #include "apriltag.h"
@@ -84,6 +85,117 @@ int64_t getTime();
 void YUV4202GRAY_CV_SAVE(std::string &inputPath ,cv::Mat&grayImg,int width,int height);
 void preBuildDistortedLookupTable(std::vector<std::vector<distortion_uv >> &lookupTable,const int width, const int height);
 void myImageDistorted(cv::Mat &src , cv::Mat &image_undistort,const std::vector<std::vector<distortion_uv>> &lookupTable);
+cv::Mat ComputeH(const vector<cv::Point2f> &vP1, const vector<cv::Point2f> &vP2);
+void homography_compute3(double c[4][4] , Eigen::Matrix3d &H);
+
+void homography_compute3(double c[4][4] , Eigen::Matrix3d &H) {
+    
+    double A[] =  {
+            c[0][0], c[0][1], 1,       0,       0, 0, -c[0][0]*c[0][2], -c[0][1]*c[0][2], c[0][2],
+                  0,       0, 0, c[0][0], c[0][1], 1, -c[0][0]*c[0][3], -c[0][1]*c[0][3], c[0][3],
+            c[1][0], c[1][1], 1,       0,       0, 0, -c[1][0]*c[1][2], -c[1][1]*c[1][2], c[1][2],
+                  0,       0, 0, c[1][0], c[1][1], 1, -c[1][0]*c[1][3], -c[1][1]*c[1][3], c[1][3],
+            c[2][0], c[2][1], 1,       0,       0, 0, -c[2][0]*c[2][2], -c[2][1]*c[2][2], c[2][2],
+                  0,       0, 0, c[2][0], c[2][1], 1, -c[2][0]*c[2][3], -c[2][1]*c[2][3], c[2][3],
+            c[3][0], c[3][1], 1,       0,       0, 0, -c[3][0]*c[3][2], -c[3][1]*c[3][2], c[3][2],
+                  0,       0, 0, c[3][0], c[3][1], 1, -c[3][0]*c[3][3], -c[3][1]*c[3][3], c[3][3],
+    };
+
+    double epsilon = 1e-10;
+
+    // Eliminate.
+    for (int col = 0; col < 8; col++) {
+        // Find best row to swap with.
+        double max_val = 0;
+        int max_val_idx = -1;
+        for (int row = col; row < 8; row++) {
+            double val = fabs(A[row*9 + col]);
+            if (val > max_val) {
+                max_val = val;
+                max_val_idx = row;
+            }
+        }
+
+        if (max_val < epsilon) {
+            fprintf(stderr, "WRN: Matrix is singular.\n");
+        }
+
+        // Swap to get best row.
+        if (max_val_idx != col) {
+            for (int i = col; i < 9; i++) {
+                double tmp = A[col*9 + i];
+                A[col*9 + i] = A[max_val_idx*9 + i];
+                A[max_val_idx*9 + i] = tmp;
+            }
+        }
+
+        // Do eliminate.
+        for (int i = col + 1; i < 8; i++) {
+            double f = A[i*9 + col]/A[col*9 + col];
+            A[i*9 + col] = 0;
+            for (int j = col + 1; j < 9; j++) {
+                A[i*9 + j] -= f*A[col*9 + j];
+            }
+        }
+    }
+
+    // Back solve.
+    for (int col = 7; col >=0; col--) {
+        double sum = 0;
+        for (int i = col + 1; i < 8; i++) {
+            sum += A[col*9 + i]*A[i*9 + 8];
+        }
+        A[col*9 + 8] = (A[col*9 + 8] - sum)/A[col*9 + col];
+    }
+    // matd_t* tmp =  matd_create_data(3, 3, (double[]) { A[8], A[17], A[26], A[35], A[44], A[53], A[62], A[71], 1 });
+    H << A[8], A[17], A[26], A[35], A[44], A[53], A[62], A[71], 1;
+}
+
+/**
+ * @brief 从特征点匹配求homography（normalized DLT）
+ * 
+ * @param  vP1 归一化后的点, in reference frame
+ * @param  vP2 归一化后的点, in current frame
+ * @return     单应矩阵
+ * @see        Multiple View Geometry in Computer Vision - Algorithm 4.2 p109
+ */
+    cv::Mat ComputeH(const vector<cv::Point2f> &vP1, const vector<cv::Point2f> &vP2) 
+    {
+        const int N = vP1.size();
+
+        cv::Mat A(2 * N, 9, CV_32F); // 2N*9  N=8
+
+        for (int i = 0; i < N; i++)
+        {
+            const float u1 = vP1[i].x;
+            const float v1 = vP1[i].y;
+            const float u2 = vP2[i].x;
+            const float v2 = vP2[i].y;
+            //第一行
+            A.at<float>(2 * i, 0) = 0.0;
+            A.at<float>(2 * i, 1) = 0.0;
+            A.at<float>(2 * i, 2) = 0.0;
+            A.at<float>(2 * i, 3) = -u1;
+            A.at<float>(2 * i, 4) = -v1;
+            A.at<float>(2 * i, 5) = -1;
+            A.at<float>(2 * i, 6) = v2 * u1;
+            A.at<float>(2 * i, 7) = v2 * v1;
+            A.at<float>(2 * i, 8) = v2;
+            //第二行
+            A.at<float>(2 * i + 1, 0) = u1;
+            A.at<float>(2 * i + 1, 1) = v1;
+            A.at<float>(2 * i + 1, 2) = 1;
+            A.at<float>(2 * i + 1, 3) = 0.0;
+            A.at<float>(2 * i + 1, 4) = 0.0;
+            A.at<float>(2 * i + 1, 5) = 0.0;
+            A.at<float>(2 * i + 1, 6) = -u2 * u1;
+            A.at<float>(2 * i + 1, 7) = -u2 * v1;
+            A.at<float>(2 * i + 1, 8) = -u2;
+        }
+        cv::Mat u, w, vt;
+        cv::SVDecomp(A, w, u, vt, cv::SVD::MODIFY_A | cv::SVD::FULL_UV);
+        return vt.row(8).reshape(0, 3); // vt的最后一行 即v的最后一列
+    }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void preBuildDistortedLookupTable(std::vector<std::vector<distortion_uv >> &lookupTable,const int width, const int height)
@@ -191,6 +303,7 @@ void YUV4202GRAY_CV_SAVE(std::string &inputPath ,cv::Mat&grayImg,int width,int h
     //     cv::waitKey(0); 
     //     cv::cvDestroyWindow("resultImage");
     // }
+
     free(data);
     fclose(pFileIn);
 }
@@ -340,6 +453,14 @@ void YU12toRGB(std::string &yuv_file_path,cv::Mat &rgb_Img,const int w , const i
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char *argv[])
 {
     std::string path = "/home/xinyu/workspace/360/OFei-RGB/yuv2rgb/pic/";
@@ -396,55 +517,41 @@ int main(int argc, char *argv[])
     Mat gray, rgbImage,rgbImageRaw;
     const int testNumber = 10;
 
-    for ( int i =4 ; i < testNumber; i++)
+    for ( int imageIndex = 4 ; imageIndex < testNumber; imageIndex++)
     {
-        std::cout << "\n<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< NEW IMAGE <<<<<<<<<<<<<<<<<<< diatance = "<< i*10 <<"cm \n";
+        std::cout << "\n<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< NEW IMAGE <<<<<<<<<<<<<<<<<<< diatance = "<< imageIndex*10 <<"cm \n";
 
-#if 0
-        std::string new_path = path + std::to_string(i)+".jpg";
-        frame = imread(new_path);
-#endif
-
-        
         //  TODO： 1 循环读取YUV将其转成GRAY
         auto t1 = getTime();
-
-        std::string new_path = "/data/rgb/left-"+std::to_string(i)+".yuv";
+        std::string new_path = "/data/rgb/left-"+std::to_string(imageIndex)+".yuv";
         // YU12toRGB(new_path,rgbImageRaw,1920,1080,0);
-        
         YUV4202GRAY_CV_SAVE(new_path,rgbImageRaw,1920,1080);
-
         auto t2 = getTime();
         // std::cout << "[Time] YU12toRGB = " << t2-t1 << "ms\n";
-
-        // TODO : 裁剪
+        // TODO : 2 裁剪
         auto my_select = cv::Rect(300,200,1320,680);
         rgbImage = rgbImageRaw(my_select);
         auto t21 = getTime();
         // std::cout << "[Time] cut Image = " << t21-t2 << "ms\n";
-
-        // TODO :  图像降采样
+        // TODO :  3 图像降采样
         int rows = rgbImage.rows, cols = rgbImage.cols;
         cv::Mat newFrame = rgbImage;
-        
         // cv::pyrDown(rgbImage,newFrame,cv::Size(cols/2,rows/2));
         // std::cout << newFrame.rows << "." << newFrame.cols<< "\n";
-
         auto t3 = getTime();
         // std::cout << "[Time] pyrDown = " << t3-t21 << "ms\n";
-
-        // TODO : 对RGB图像去畸变
-        cv::Mat frame = cv::Mat(newFrame.rows, newFrame.cols, CV_8UC1);   // 去畸变以后的图
+        // TODO : 4 对RGB图像去畸变
+        cv::Mat frame1 = cv::Mat(newFrame.rows, newFrame.cols, CV_8UC1);   // 去畸变以后的图
         // myImageDistorted(newFrame,frame);
-        myImageDistorted(newFrame,frame,distortLookupTable);
-
+        myImageDistorted(newFrame,frame1,distortLookupTable);
+        //  TODO : 5 直方图均衡化
+        cv::Mat frame = frame1;
+        // cv::equalizeHist(frame1,frame);
         auto t4 = getTime();
         // std::cout << "[Time] myImageDistorted = " << t4-t3 << "ms\n";
-
-        // TODO : 3 RGB  转成灰度图  
+        // TODO : 6   RGB转成灰度图  
         // cvtColor(frame, gray, COLOR_BGR2GRAY);
         // gray = frame;
-
         auto t5 = getTime();
         // std::cout << "[Time] cvtColor = " << t5-t4 << "ms\n";
 
@@ -457,13 +564,11 @@ int main(int argc, char *argv[])
             .buf = frame.data
         };
 
+        // TODO : 7 检测tag，并计算H  
         zarray_t *detections = apriltag_detector_detect(td, &im);
         
         auto t6 = getTime();
         // std::cout << "[Time] apriltag_detector_detect = " << t6-t5 << "ms\n";
-
-        // Draw detection outlines
-
         auto t7_ = getTime();
 
 
@@ -472,6 +577,17 @@ int main(int argc, char *argv[])
         bool id3ready = false , id6ready =false;
         Eigen::Matrix3d rotation_matrix;
         
+        
+        // cv::Mat init_frame;
+        cv::Mat image_with_init_corners = frame1.clone();
+        cv::Mat image_with_gftt_corners = frame1.clone();
+        cv::Mat image_with_subpixel_corners = frame1.clone();
+        
+
+
+        /*  
+        *   遍历每个的检测结果
+        */
         for (int i = 0; i < zarray_size(detections); i++) 
         {
             apriltag_detection_t *det;
@@ -482,23 +598,122 @@ int main(int argc, char *argv[])
                 continue;
             }
 
+            std::vector<cv::Point2f> corners;
+            corners.resize(4);
+            ///////////////////////////////////////////////////////////////////////////
             auto printDetectResult = [&]()
             {
                 printf("\n<<<<<<<<<<<< TAG ID = %i, decision_margin = %f\n", det->id,det->decision_margin);
                 // print conner and center
+                printf("detection result : \n");
                 for (int i = 0 ; i < 4; i++)
                 {
-                    printf("conner %i =(%f , %f) \n",i,det->p[i][0],det->p[i][1]);
+                    cv::Point2f tmp(det->p[i][0],det->p[i][1]);
+                    corners[i] = tmp;
+                    // printf("detect conner %i =(%f , %f) \n",i,det->p[i][0],det->p[i][1]);
                 }
-                printf("center = %f ,%f \n",det->c[0],det->c[1]);
-                // print Homography Matrix
-                // printf("Homography Matrix :  \n %f,%f,%f \n %f,%f,%f\n  %f,%f,%f\n", det->H->data[0],det->H->data[1],det->H->data[2],det->H->data[3],
-                            // det->H->data[4],det->H->data[5],det->H->data[6],det->H->data[7],det->H->data[8]);
+                // printf("center = %f ,%f \n",det->c[0],det->c[1]);
+                // // print Homography Matrix
+                printf("Homography Matrix :  \n %f,%f,%f \n %f,%f,%f\n  %f,%f,%f\n", det->H->data[0],det->H->data[1],det->H->data[2],det->H->data[3],
+                            det->H->data[4],det->H->data[5],det->H->data[6],det->H->data[7],det->H->data[8]);
             };
-
             printDetectResult();
+            ///////////////////////////////////////////////////////////////////////////
 
-#if 0
+
+            // todo: 计算corners的周围7*7的点的最小特征值
+            const int halfWindowSize = 7;
+            const int halfSmallWindowSize = 2;
+            std::vector<cv::Mat> cornersMinValuesMatVec;
+            // 计算每个角点周围11*11区域的响应（最小特征值）
+            for ( auto  i = 0 ;  i < corners.size(); i ++)
+            {
+                auto currentSelect = cv::Rect( std::round(corners[i].x-halfWindowSize),std::round(corners[i].y-halfWindowSize),2*halfWindowSize+1,2*halfWindowSize+1);
+                cv::Mat  tmpMat = frame(currentSelect);
+                cv::Mat cornerMinValueMat;
+                // cv::GaussianBlur(tmpMat,tmpMat,cv::Size(3,3),0);
+                cv::cornerMinEigenVal(tmpMat,cornerMinValueMat,3,3,4); // sobel 算子的size 3*3
+                cornersMinValuesMatVec.push_back(cornerMinValueMat);
+            }
+            // 遍历每个角点周围的11*11响应矩阵，在5*5范围内找最大的最小特征值（像素坐标）
+            int count = 0;
+            std::vector<cv::Point2f> corners_after_gftt;
+            corners_after_gftt.resize(4);
+            corners_after_gftt = corners;
+            for ( auto mat : cornersMinValuesMatVec)
+            {
+                auto currentSelect = cv::Rect(halfWindowSize-halfSmallWindowSize,halfWindowSize-halfSmallWindowSize,2*halfSmallWindowSize+1,2*halfSmallWindowSize+1);
+                cv::Mat  tmpMat = mat(currentSelect);
+                double maxValue;    // 最大值，最小值
+                cv::Point  maxIdx;    // 最小值坐标，最大值坐标     
+                cv::minMaxLoc(tmpMat, nullptr, &maxValue, nullptr, &maxIdx);
+                // std::cout << "corner_" << count << "\n"<< tmpMat << "\n"; 
+                // std::cout << "最大值：" << maxValue  << ", 最大值位置：" << maxIdx << std::endl;
+                // 计算
+                corners_after_gftt[count].y = corners[count].y + (maxIdx.y - halfSmallWindowSize);
+                corners_after_gftt[count].x = corners[count].x + (maxIdx.x - halfSmallWindowSize);
+                count++;
+            }
+
+            // todo:  do cornerSubPix
+            std::vector<cv::Point2f> corners_final;
+            corners_final = corners_after_gftt;
+            // cv::cornerSubPix(frame, corners, cv::Size(11, 11), cv::Size(-1, -1), cv::TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
+            cv::cornerSubPix(frame, corners_after_gftt, cv::Size(3, 3), cv::Size(-1, -1), cv::TermCriteria(2+1, 1000000, 0.001));
+
+
+            ///////////////////////////////////////////////////////////////////////////
+            // todo : 确定最终的角点
+
+            for(int i = 0; i < corners_final.size(); i++)
+            {
+                // frame.at<uint8_t>(std::round(corners_final[i].y),std::round(corners_final[i].x)) = 255;
+                // cv::circle(frame, corners_final[i], 5, cv::Scalar(0, 255, 0), 2, 8, 0);
+                printf("corners_final %i = %f ,%f\n",i,corners_final[i].x,corners_final[i].y);
+            }
+            ///////////////////////////////////////////////////////////////////////////
+            // TODO: 计算新的单应矩阵
+            double corr_arr[4][4];
+            for (int i = 0; i < 4; i++) 
+            {
+                corr_arr[i][0] = (i==0 || i==3) ? -1 : 1;
+                corr_arr[i][1] = (i==0 || i==1) ? -1 : 1;
+            }
+            corr_arr[0][2] = corners_final[3].x;
+            corr_arr[0][3] = corners_final[3].y;
+            corr_arr[1][2] = corners_final[2].x;
+            corr_arr[1][3] = corners_final[2].y;
+            corr_arr[2][2] = corners_final[1].x;
+            corr_arr[2][3] = corners_final[1].y;
+            corr_arr[3][2] = corners_final[0].x;
+            corr_arr[3][3] = corners_final[0].y;
+
+            Eigen::Matrix3d newH;
+            homography_compute3(corr_arr,newH);
+
+            std::cout << "New Homography Matrix: \n"<< newH << "\n";
+            ///////////////////////////////////////////////////////////////////////////
+            // 使用新的角点更新det的 H 及 corners
+            auto updateDetwithNewCorners = [&] ()
+            {
+                det->H->data[0] = newH(0,0);
+                det->H->data[1] = newH(0,1);
+                det->H->data[2] = newH(0,2);
+                det->H->data[3] = newH(1,0);
+                det->H->data[4] = newH(1,1);
+                det->H->data[5] = newH(1,2);
+                det->H->data[6] = newH(2,0);
+                det->H->data[7] = newH(2,1);
+                det->H->data[8] = newH(2,2);
+                for (int i = 0; i < 4; i++) 
+                {
+                    det->p[i][0] = corners[i].x;
+                    det->p[i][1]  = corners[i].y;
+                }
+            };
+            // updateDetwithNewCorners();
+
+#if 1
             line(frame, Point(det->p[0][0], det->p[0][1]),
                      Point(det->p[1][0], det->p[1][1]),
                      Scalar(0, 0xff, 0), 2);
@@ -539,6 +754,8 @@ int main(int argc, char *argv[])
             apriltag_pose_t pose;
             double err = estimate_tag_pose(&info, &pose);
 
+            // cv::decompose
+
              
             rotation_matrix<<pose.R->data[0],pose.R->data[1],pose.R->data[2],pose.R->data[3],pose.R->data[4],pose.R->data[5],pose.R->data[6],pose.R->data[7],pose.R->data[8];
             Eigen::AngleAxisd rotation_vector;
@@ -548,7 +765,7 @@ int main(int argc, char *argv[])
             // printf("R = \n%f,%f,%f\n%f,%f,%f\n%f,%f,%f\n"
             // ,pose.R->data[0],pose.R->data[1],pose.R->data[2],pose.R->data[3],pose.R->data[4],pose.R->data[5],pose.R->data[6],pose.R->data[7],pose.R->data[8]);
             // print eulerAngle
-            printf("Angles =  %f, %f ,%f\n",eulerAngle[2]*180/3.14159,eulerAngle[1]*180/3.14159,eulerAngle[0]*180/3.14159);
+            // printf("Angles =  %f, %f ,%f\n",eulerAngle[2]*180/3.14159,eulerAngle[1]*180/3.14159,eulerAngle[0]*180/3.14159);
 
 
             if ( det->id == 3 )
@@ -588,15 +805,26 @@ int main(int argc, char *argv[])
                 printf("c3 =  %f, %f ,%f\n",c3[0]/c3[2],c3[1]/c3[2],c3[2]/c3[2]);
                 printf("center =  %f, %f ,%f\n",c[0]/c[2],c[1]/c[2],c[2]/c[2]);
 
-                frame.at<uint8_t>(std::round(c0[1]/c0[2]),std::round(c0[0]/c0[2])) = 255;
-                frame.at<uint8_t>(std::round(c1[1]/c1[2]),std::round(c1[0]/c1[2])) = 255;
-                frame.at<uint8_t>(std::round(c2[1]/c2[2]),std::round(c2[0]/c2[2])) = 255;
-                frame.at<uint8_t>(std::round(c3[1]/c3[2]),std::round(c3[0]/c3[2])) = 255;
-                frame.at<uint8_t>(std::round(c[1]/c[2]),std::round(c[0]/c[2])) = 255;
+                // frame.at<uint8_t>(std::round(c0[1]/c0[2]),std::round(c0[0]/c0[2])) = 255;
+                // frame.at<uint8_t>(std::round(c1[1]/c1[2]),std::round(c1[0]/c1[2])) = 255;
+                // frame.at<uint8_t>(std::round(c2[1]/c2[2]),std::round(c2[0]/c2[2])) = 255;
+                // frame.at<uint8_t>(std::round(c3[1]/c3[2]),std::round(c3[0]/c3[2])) = 255;
+                // frame.at<uint8_t>(std::round(c[1]/c[2]),std::round(c[0]/c[2])) = 255;
             };
-            reprojection();
+            // reprojection();
 
-        } // FOR 
+
+            for(int corner_id = 0; corner_id < corners_after_gftt.size(); corner_id++)
+            {
+                image_with_init_corners.at<uint8_t>(std::round(corners[corner_id].y),std::round(corners[corner_id].x)) = 255;
+                cv::circle(image_with_init_corners, corners[corner_id], 5, cv::Scalar(0, 255, 0), 2, 8, 0);
+                image_with_gftt_corners.at<uint8_t>(std::round(corners_after_gftt[corner_id].y),std::round(corners_after_gftt[corner_id].x)) = 255;
+                cv::circle(image_with_gftt_corners, corners_after_gftt[corner_id], 5, cv::Scalar(0, 255, 0), 2, 8, 0);
+                image_with_subpixel_corners.at<uint8_t>(std::round(corners_final[corner_id].y),std::round(corners_final[corner_id].x)) = 255;
+                cv::circle(image_with_subpixel_corners, corners_final[corner_id], 5, cv::Scalar(0, 255, 0), 2, 8, 0);
+            }
+            
+        } // FOR det
         
         auto printEstimateTagPose = [&]()
         {
@@ -609,16 +837,33 @@ int main(int argc, char *argv[])
         };
         printEstimateTagPose();
 
-        
+
         auto t8 = getTime();
         // std::cout << "[Time] estimate_tag_pose = " << t8-t7_<< "ms\n";
         // std::cout << ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>[Time] all time = " << t8-t1<< "ms\n" << std::endl;
         apriltag_detections_destroy(detections);
-        std::string out_path = "/data/rgb/res_"+std::to_string(i)+".jpg";
-        SaveImage(frame,out_path);
-        // imshow("Tag Detections", frame);
-        // waitKey(0);
-    } // for
+
+
+        std::string out_path0 = "/data/rgb/res_"+std::to_string(imageIndex)+".jpg";
+        SaveImage(frame,out_path0);
+        std::string out_path1 = "/data/rgb/image_with_init_corners_"+std::to_string(imageIndex)+".jpg";
+        SaveImage(image_with_init_corners,out_path1);
+        std::string out_path2 = "/data/rgb/image_with_gftt_corners_"+std::to_string(imageIndex)+".jpg";
+        SaveImage(image_with_gftt_corners,out_path2);
+        std::string out_path3 = "/data/rgb/image_with_subpixel_corners_"+std::to_string(imageIndex)+".jpg";
+        SaveImage(image_with_subpixel_corners,out_path3);
+
+        // pinjit
+        std::vector<cv::Mat> imageVec;
+        cv::Mat combineImage;
+        imageVec.push_back(image_with_init_corners);
+        imageVec.push_back(image_with_gftt_corners);
+        imageVec.push_back(image_with_subpixel_corners);
+        cv::vconcat(imageVec,combineImage);
+        std::string out_path4 = "/data/rgb/combineImage_"+std::to_string(imageIndex)+".jpg";
+        SaveImage(combineImage,out_path4);
+
+    } // for image
 
     apriltag_detector_destroy(td);
 

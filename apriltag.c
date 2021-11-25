@@ -894,6 +894,8 @@ static void quad_decode_task(void *_u)
             refine_edges(td, im, quad_original);
         }
 
+        
+
         // make sure the homographies are computed...
         if (quad_update_homographies(quad_original))
             continue;
