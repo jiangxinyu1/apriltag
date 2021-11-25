@@ -65,28 +65,9 @@ using ceres::Solve;
 using ceres::Solver;
 
 
-//代价函数计算函数
-template <typename T>
-void reprojectionError( const Eigen::Matrix<T,3,3> &R, //旋转矩阵 R
-                                         const Eigen::Matrix<T,3,1> &t,  // t
-                                         const Eigen::Matrix<T,3,3> &K, // 相机内参
-                                         const Eigen::Matrix<double,3,1> &detect_corner,  // 检测到的角点
-                                         const Eigen::Matrix<double,3,1> &real_corner, // 真实角点
-                                         double &residual )//代价函数变量
-{
-    T forward_error[2];
-    Eigen::Matrix<T,3,1> tmp= K*(R* real_corner + t);
-    // // 重投影误差归一化
-    tmp(0,0) = tmp(0,0)/tmp(2,0);
-    tmp(1,0) = tmp(1,0)/tmp(2,0);
-    forward_error[0] = detect_corner(0,0) - tmp(0,0);
-    forward_error[1] = detect_corner(1,0) - tmp(1,0);
-    //计算重投影误差的二范数作为代价函数误差
-    residual=forward_error[0]*forward_error[0]+forward_error[1]*forward_error[1];
-}
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class CostFunctor{
 public:
     CostFunctor(const Eigen::Vector3d& tag_corner, const Eigen::Vector3d& real_corner, const Eigen::Matrix3d& K):
@@ -110,8 +91,6 @@ public:
 #if 1        
         T forward_error[2];
         Eigen::Matrix<T,3,1> tmp= K_*(rotation_matrix* real_corner + trans_vector);
-        // auto tmp = K_*(rotation_matrix* real_corner + trans_vector);
-
         // 重投影误差归一化
         tmp(0,0) = tmp(0,0) / tmp(2,0);
         tmp(1,0) = tmp(1,0) / tmp(2,0);
@@ -127,6 +106,70 @@ private:
     Eigen::Vector3d real_corner_;
     Eigen::Matrix3d K_;
 };
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+class CostFunctor2{
+public:
+    // 构造函数
+    CostFunctor2(const std::vector<Eigen::Vector3d>& tag1_points, 
+                            const std::vector<Eigen::Vector3d>& tag2_points,
+                            const std::vector<Eigen::Vector3d>& real_points,
+                            const Eigen::Matrix3d& KMat):
+        tag1_points_(tag1_points), tag2_points_(tag2_points), real_points_(real_points),KMat_(KMat){}
+
+    // 定义残差项计算方法
+    template <typename T>
+    bool operator()(const T* const RT, T* residual) const {
+        /////////////////////////////////////////////////////////////////////////////////
+        // TODO : 将待优化参数组织成旋转矩阵R1和R2，t1,t2
+        Eigen::Matrix<T,3,3> R1;
+        Eigen::Matrix<T,3,3> R2;
+        Eigen::Matrix<T,3,1> t1;
+        Eigen::Matrix<T,3,1> t2;
+
+        /////////////////////////////////////////////////////////////////////////////////
+        // todo：构建重投影残差
+        T tag1Error, tag2Error,reprojectionError;
+        for(int index = 0 ; index < cornerSize; index++ )
+        {
+            // 计算tag1角点
+            Eigen::Matrix<T,3,1> tmp1= KMat_*(R1* real_points_[index] + t1);
+            tmp1(0,0) = tmp1(0,0) / tmp1(2,0);
+            tmp1(1,0) = tmp1(1,0) / tmp1(2,0);
+            T forward_error[2];
+            forward_error[0] = tag1_points_[index][0] - tmp1(0,0);
+            forward_error[1] = tag1_points_[index][1] - tmp1(1,0);
+            // 计算tag2角点
+            Eigen::Matrix<T,3,1> tmp2= KMat_*(R2* real_points_[index] + t2);
+            tmp2(0,0) = tmp2(0,0) / tmp2(2,0);
+            tmp2(1,0) = tmp2(1,0) / tmp2(2,0);
+            T forward_error2[2];
+            forward_error2[0] = tag2_points_[index][0] - tmp2(0,0);
+            forward_error2[1] = tag2_points_[index][1] - tmp2(1,0);
+            //计算重投影误差的二范数作为代价函数误差
+            tag1Error += forward_error[0]*forward_error[0]+forward_error[1]*forward_error[1];
+            tag2Error += forward_error2[0]*forward_error2[0]+forward_error2[1]*forward_error2[1];
+        }
+        reprojectionError = tag1Error + tag2Error;
+        /////////////////////////////////////////////////////////////////////////////////
+        // todo : 
+
+
+        residual[0] = reprojectionError;
+        return true;
+
+    }
+
+private:
+    const std::vector<Eigen::Vector3d> tag1_points_;
+    const std::vector<Eigen::Vector3d> tag2_points_;
+    const std::vector<Eigen::Vector3d> real_points_;
+    Eigen::Matrix3d KMat_;
+    const int cornerSize = 4;
+};
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 
 bool blShowImage = false;
 
@@ -158,6 +201,27 @@ void myImageDistorted(cv::Mat &src , cv::Mat &image_undistort,const std::vector<
 cv::Mat ComputeH(const vector<cv::Point2f> &vP1, const vector<cv::Point2f> &vP2);
 void homography_compute3(double c[4][4] , Eigen::Matrix3d &H);
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//代价函数计算函数
+template <typename T>
+void reprojectionError( const Eigen::Matrix<T,3,3> &R, //旋转矩阵 R
+                                         const Eigen::Matrix<T,3,1> &t,  // t
+                                         const Eigen::Matrix<T,3,3> &K, // 相机内参
+                                         const Eigen::Matrix<double,3,1> &detect_corner,  // 检测到的角点
+                                         const Eigen::Matrix<double,3,1> &real_corner, // 真实角点
+                                         double &residual )//代价函数变量
+{
+    T forward_error[2];
+    Eigen::Matrix<T,3,1> tmp= K*(R* real_corner + t);
+    // // 重投影误差归一化
+    tmp(0,0) = tmp(0,0)/tmp(2,0);
+    tmp(1,0) = tmp(1,0)/tmp(2,0);
+    forward_error[0] = detect_corner(0,0) - tmp(0,0);
+    forward_error[1] = detect_corner(1,0) - tmp(1,0);
+    //计算重投影误差的二范数作为代价函数误差
+    residual=forward_error[0]*forward_error[0]+forward_error[1]*forward_error[1];
+}
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void homography_compute3(double c[4][4] , Eigen::Matrix3d &H) {
@@ -479,6 +543,45 @@ void YU12toRGB(std::string &yuv_file_path,cv::Mat &rgb_Img,const int w , const i
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void poseOptimizationAll(const std::vector<Eigen::Vector3d>& tag1_points, const std::vector<Eigen::Vector3d>& tag2_points,
+                                        const Eigen::Matrix3d &K,std::vector<double>&RT1,std::vector<double>&RT2)
+{
+    std::vector<Eigen::Vector3d> real_points; 
+    real_points.resize(5);
+    Eigen::Vector3d tagPoint0(-0.03,0.03,0.0);
+    Eigen::Vector3d tagPoint1(0.03,0.03,0.0);
+    Eigen::Vector3d tagPoint2(0.03,-0.03,0.0);
+    Eigen::Vector3d tagPoint3(-0.03,-0.03,0.0);
+    Eigen::Vector3d tagCenter(0.0,0.0,0.0);
+    real_points[0]= tagPoint0;
+    real_points[1]= tagPoint1;
+    real_points[2]= tagPoint2;
+    real_points[3]= tagPoint3;
+    real_points[4]= tagCenter;
+
+    double RT1_[12] = {RT1[0],RT1[1],RT1[2],RT1[3],RT1[4],RT1[5],RT1[6],RT1[7],RT1[8],RT1[9],RT1[10],RT1[11]};
+    double RT2_[12] = {RT2[0],RT2[1],RT2[2],RT2[3],RT2[4],RT2[5],RT2[6],RT2[7],RT2[8],RT2[9],RT2[10],RT2[11]};
+
+    // Build the problem.
+    Problem problem;
+
+    CostFunctor2 *Cost_functor= new CostFunctor2(tag1_points,tag2_points,real_points,K);
+        //ceres自动求导求增量方程<代价函数类型，代价函数维度，优化变量维度>（代价函数）
+    problem.AddResidualBlock(new AutoDiffCostFunction<CostFunctor2,1,12> (Cost_functor), new ceres::CauchyLoss(1),RT1_);
+
+    // Run the solver!
+    ceres::Solver::Options solver_options;//实例化求解器对象
+    //线性求解器的类型，用于计算Levenberg-Marquardt算法每次迭代中线性最小二乘问题的解
+    solver_options.linear_solver_type=ceres::DENSE_QR;
+    //记录优化过程，输出到cout位置
+    solver_options.minimizer_progress_to_stdout= true;
+    //ceres求解运算
+    //实例化求解对象
+    ceres::Solver::Summary summary;
+    //求解
+    ceres::Solve(solver_options,&problem,&summary);
+}
+
 void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points, const std::vector<Eigen::Vector3d>& tag2_points,
                                         const Eigen::Matrix3d &K,std::vector<double>&RT1,std::vector<double>&RT2)
 {
@@ -498,7 +601,6 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points, const std
     double RT1_[12] = {RT1[0],RT1[1],RT1[2],RT1[3],RT1[4],RT1[5],RT1[6],RT1[7],RT1[8],RT1[9],RT1[10],RT1[11]};
     double RT2_[12] = {RT2[0],RT2[1],RT2[2],RT2[3],RT2[4],RT2[5],RT2[6],RT2[7],RT2[8],RT2[9],RT2[10],RT2[11]};
 
-    
     // Build the problem.
     Problem problem;
 
@@ -528,7 +630,6 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points, const std
     ceres::Solver::Summary summary;
     //求解
     ceres::Solve(solver_options,&problem,&summary);
-
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -837,9 +938,6 @@ int main(int argc, char *argv[])
             apriltag_pose_t pose;
             double err = estimate_tag_pose(&info, &pose);
 
-            // cv::decompose
-
-             
             rotation_matrix<<pose.R->data[0],pose.R->data[1],pose.R->data[2],pose.R->data[3],pose.R->data[4],pose.R->data[5],pose.R->data[6],pose.R->data[7],pose.R->data[8];
             Eigen::AngleAxisd rotation_vector;
             rotation_vector.fromRotationMatrix(rotation_matrix);
@@ -931,10 +1029,11 @@ int main(int argc, char *argv[])
                 // frame.at<uint8_t>(std::round(c2[1]/c2[2]),std::round(c2[0]/c2[2])) = 255;
                 // frame.at<uint8_t>(std::round(c3[1]/c3[2]),std::round(c3[0]/c3[2])) = 255;
                 // frame.at<uint8_t>(std::round(c[1]/c[2]),std::round(c[0]/c[2])) = 255;
+
             };
             // reprojection();
 
-
+            
             for(int corner_id = 0; corner_id < corners_after_gftt.size(); corner_id++)
             {
                 image_with_init_corners.at<uint8_t>(std::round(corners[corner_id].y),std::round(corners[corner_id].x)) = 255;
@@ -961,10 +1060,8 @@ int main(int argc, char *argv[])
         // todo：优化位姿
         if ( id3ready && id6ready )
         {                
-            poseOptimization(tag1_points,tag2_points,K,RT1,RT2);
+            poseOptimizationAll(tag1_points,tag2_points,K,RT1,RT2);
         }
-        
-
 
         auto t8 = getTime();
         // std::cout << "[Time] estimate_tag_pose = " << t8-t7_<< "ms\n";
