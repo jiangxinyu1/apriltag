@@ -127,9 +127,10 @@ public:
         /////////////////////////////////////////////////////////////////////////////////
 
         // TODO : 将待优化参数组织成旋转矩阵R1和R2，t1,t2
-        std::cout << "Cost [RT_] = " << RT[0] <<","<<  RT[1] <<","<<  RT[2] <<","<<  RT[3] <<","<<  RT[4] <<","<<  RT[5] <<","<<  RT[6] << "\n";
+        // std::cout << "Cost [RT_] = " << RT[0] <<","<<  RT[1] <<","<<  RT[2] <<","<<  RT[3] <<","<<  RT[4] <<","<<  RT[5] <<","<<  RT[6] << "\n";
 
         Eigen::AngleAxis<T> rotation_vec1(RT[0],Eigen::Matrix<T,3,1>(RT[1],RT[2],RT[3]));
+
         // Eigen::AngleAxis<T> rotation_vec1;
         // rotation_vec1.angle()= RT[0];
         // rotation_vec1.axis()(0,0)= RT[0];
@@ -138,39 +139,40 @@ public:
 
         Eigen::Matrix<T,3,1> t1(RT[4],RT[5],RT[6]);
 
-        std::cout << "Cost rotation_vec1 angle = " << endl << rotation_vec1.angle() << "\n";
-        std::cout << "Cost rotation_vec1 axis = " << endl << rotation_vec1.axis() << "\n";
-        std::cout << "Cost rotation_vec1" << endl << rotation_vec1.matrix() << endl;
+        // std::cout << "Cost rotation_vec1 angle = " << endl << rotation_vec1.angle() << "\n";
+        // std::cout << "Cost rotation_vec1 axis = " << endl << rotation_vec1.axis() << "\n";
+        // std::cout << "Cost rotation_vec1" << endl << rotation_vec1.matrix() << endl;
 
-        // Eigen::AngleAxis<T> rotation_vec2(RT[7],Eigen::Matrix<T,3,1>(RT[8],RT[9],RT[10]));
-        // Eigen::Matrix<T,3,1> t2(RT[11],RT[12],RT[13]);
+        Eigen::AngleAxis<T> rotation_vec2(RT[7],Eigen::Matrix<T,3,1>(RT[8],RT[9],RT[10]));
+        Eigen::Matrix<T,3,1> t2(RT[11],RT[12],RT[13]);
         Eigen::Matrix<T,3,3> R1 = rotation_vec1.toRotationMatrix();
-        // Eigen::Matrix<T,3,3> R2 =rotation_vec2.toRotationMatrix();
+        Eigen::Matrix<T,3,3> R2 =rotation_vec2.toRotationMatrix();
 
-        std::cout << " cost rotation_vec1 = " << std::endl << rotation_vec1.matrix() << "\n";
-        std::cout << " cost R1 = "<< std::endl  << R1 << "\n";
-        std::cout << " cost t1 = "<< std::endl  << t1 << "\n";
+        // std::cout << " cost rotation_vec1 = " << std::endl << rotation_vec1.matrix() << "\n";
+        // std::cout << " cost R1 = "<< std::endl  << R1 << "\n";
+        // std::cout << " cost t1 = "<< std::endl  << t1 << "\n";
 
         /////////////////////////////////////////////////////////////////////////////////
         // todo：构建重投影残差
         // 计算tag1角点
         Eigen::Matrix<T,3,1> tmp1;
-            if (tagFlag_ == 1 )
+            if ( tagFlag_ == 1 )
             {
                 tmp1= KMat_*(R1* real_point_ + t1);
-            }else{
-                // tmp1= KMat_*(R2* real_point_ + t2);
             }
-            std::cout << "Cost Fun2 K  = \n" << KMat_ << "\n";
-            std::cout << "Cost Fun2 TMP  = \n" << tmp1 << "\n";
+            else if ( tagFlag_ == 2 )
+            {
+                tmp1= KMat_*(R2* real_point_ + t2);
+            }
+            // std::cout << "Cost Fun2 K  = \n" << KMat_ << "\n";
+            // std::cout << "Cost Fun2 TMP  = \n" << tmp1 << "\n";
 
             T forward_error[2];
-            // tmp1(0,0) = tmp1(0,0) / tmp1(2,0);
-            // tmp1(1,0) = tmp1(1,0) / tmp1(2,0);
-            // tmp1(2,0) = tmp1(2,0) / tmp1(2,0);
-            std::cout << "Cost Fun2 TMP  = \n" << tmp1 << "\n";
-            forward_error[0] = tag_point_[0]  *tmp1(2,0)- tmp1(0,0);
-            forward_error[1]= tag_point_[1] *tmp1(2,0)- tmp1(1,0);
+            tmp1(0,0) = tmp1(0,0) / tmp1(2,0);
+            tmp1(1,0) = tmp1(1,0) / tmp1(2,0);
+            tmp1(2,0) = tmp1(2,0) / tmp1(2,0);
+            forward_error[0] = tag_point_[0]  - tmp1(0,0);
+            forward_error[1]= tag_point_[1] - tmp1(1,0);
             // residual[0]=forward_error[0]*forward_error[0]+forward_error[1]*forward_error[1];
             residual[0] = forward_error[0];
             residual[1] =forward_error[1];
@@ -587,16 +589,17 @@ void poseOptimizationAll(const std::vector<Eigen::Vector3d>& tag1_points,
     Eigen::AngleAxisd rotation_vec2;
     rotation_vec2.fromRotationMatrix(R2);
 
-    // double RT_[14] = {rotation_vec1.angle(),rotation_vec1.axis()[0],rotation_vec1.axis()[1],rotation_vec1.axis()[2],t1[0],t1[1],t1[2],
-    //                                 rotation_vec2.angle(),rotation_vec2.axis()[0],rotation_vec2.axis()[1],rotation_vec2.axis()[2],t2[0],t2[1],t2[2]};
-    double RT_[7] = {rotation_vec1.angle(),rotation_vec1.axis()(0,0),rotation_vec1.axis()(1,0),rotation_vec1.axis()(2,0),t1[0],t1[1],t1[2]};
+    double RT_[14] = {rotation_vec1.angle(),rotation_vec1.axis()[0],rotation_vec1.axis()[1],rotation_vec1.axis()[2],t1[0],t1[1],t1[2],
+                                    rotation_vec2.angle(),rotation_vec2.axis()[0],rotation_vec2.axis()[1],rotation_vec2.axis()[2],t2[0],t2[1],t2[2]};
+    // double RT_[7] = {rotation_vec1.angle(),rotation_vec1.axis()(0,0),rotation_vec1.axis()(1,0),rotation_vec1.axis()(2,0),t1[0],t1[1],t1[2]};
+    // double RT_[7] = {rotation_vec1.angle(),rotation_vec1.axis()(0,0),rotation_vec1.axis()(1,0),rotation_vec1.axis()(2,0),t1[0],t1[1],t1[2]};
 
-
+#if 0
     std::cout << "rotation_vec1" << endl << rotation_vec1.matrix() << endl;
     std::cout << "rotation_vec1 angle = " << endl << rotation_vec1.angle() << "\n";
     std::cout << "rotation_vec1 axis = " << endl << rotation_vec1.axis() << "\n";
     std::cout << "[RT_] = " << RT_[0] <<","<<  RT_[1] <<","<<  RT_[2] <<","<<  RT_[3] <<","<<  RT_[4] <<","<<  RT_[5] <<","<<  RT_[6] << "\n";
-
+#endif
     
     // Build the problem.
     Problem problem;
@@ -607,19 +610,19 @@ void poseOptimizationAll(const std::vector<Eigen::Vector3d>& tag1_points,
 
     for(int i = 0 ; i < 4; i++)
     {
-        std::cout << "tag1_points[i] = \n" <<  tag1_points[i] << std::endl; 
-        std::cout << "real_points[i] = \n" <<  real_points[i] << std::endl; 
+        // std::cout << "tag1_points[i] = \n" <<  tag1_points[i] << std::endl; 
+        // std::cout << "real_points[i] = \n" <<  real_points[i] << std::endl; 
         CostFunctor2 *Cost_functor = new CostFunctor2 (tag1_points[i],tag1_points[4],tag2_points[4],real_points[i],K,1);
         //ceres自动求导求增量方程<代价函数类型，代价函数维度，优化变量维度>（代价函数）
-        problem.AddResidualBlock( new AutoDiffCostFunction<CostFunctor2,2,7> (Cost_functor), nullptr,RT_);
+        problem.AddResidualBlock( new AutoDiffCostFunction<CostFunctor2,2,14> (Cost_functor), nullptr,RT_);
     }
-    //     for(int i = 0 ; i < 4; i++)
-    // {
-    //     CostFunctor2 *Cost_functor2 = new CostFunctor2 (tag2_points[i],tag1_points[4],tag2_points[4],real_points[i],K,2);
-    //     //ceres自动求导求增量方程<代价函数类型，代价函数维度，优化变量维度>（代价函数）
-    //     problem.AddResidualBlock(        
-    //             new AutoDiffCostFunction<CostFunctor2,1,7> (Cost_functor2), new ceres::CauchyLoss(1),RT_);
-    // }
+        for(int i = 0 ; i < 4; i++)
+    {
+        CostFunctor2 *Cost_functor2 = new CostFunctor2 (tag2_points[i],tag1_points[4],tag2_points[4],real_points[i],K,2);
+        //ceres自动求导求增量方程<代价函数类型，代价函数维度，优化变量维度>（代价函数）
+        problem.AddResidualBlock(        
+                new AutoDiffCostFunction<CostFunctor2,2,14> (Cost_functor2), nullptr ,RT_);
+    }
     // Run the solver!
     ceres::Solver::Options solver_options;//实例化求解器对象
     //线性求解器的类型，用于计算Levenberg-Marquardt算法每次迭代中线性最小二乘问题的解
@@ -632,6 +635,7 @@ void poseOptimizationAll(const std::vector<Eigen::Vector3d>& tag1_points,
     //求解
     ceres::Solve(solver_options,&problem,&summary);
 }
+
 
 void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points, const std::vector<Eigen::Vector3d>& tag2_points,
                                         const Eigen::Matrix3d &K,std::vector<double>&RT1,std::vector<double>&RT2)
@@ -1062,7 +1066,7 @@ int main(int argc, char *argv[])
             }
             
             K << info.fx,0,info.cx,0,info.fy,info.cy,0,0,1;
-            
+
             auto reprojection = [&]()
             {
                 
