@@ -57,57 +57,16 @@ extern "C" {
 
 using namespace std;
 using namespace cv;
-
 using ceres::CostFunction;
 using ceres::AutoDiffCostFunction;
 using ceres::Problem;
 using ceres::Solve;
 using ceres::Solver;
 
-
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-class CostFunctor{
-public:
-    CostFunctor(const Eigen::Vector3d& tag_corner, const Eigen::Vector3d& real_corner, const Eigen::Matrix3d& K):
-        tag_corner_(tag_corner), real_corner_(real_corner), K_(K){}
-
-    template <typename T>
-    bool operator()(const T* const RT, T* residual) const {
-
-        std::cout << "[Cost RT] = " << RT[0] <<","<<  RT[1] <<","<<  RT[2] <<","<<  RT[3] <<","<<  RT[4] <<","<<  RT[5] <<","<<  RT[6] << "\n";
-
-        Eigen::Matrix<T,3,3> rotation_matrix;
-        rotation_matrix << RT[0],RT[1],RT[2],RT[3],RT[4],RT[5],RT[6],RT[7],RT[8];
-        Eigen::Matrix<T,3,1> trans_vector;
-        trans_vector << RT[9],RT[10],RT[11];
-        Eigen::Matrix<double,3,1> detect_corner;
-        detect_corner << tag_corner_[0],tag_corner_[1],tag_corner_[2];
-        Eigen::Matrix<double,3,1> real_corner;
-        real_corner << real_corner_[0],real_corner_[1],real_corner_[2];
-
-        std::cout << " cost R1 = "<< std::endl  << rotation_matrix << "\n";
-        std::cout << " cost t1 = "<< std::endl  << trans_vector << "\n";
-
-
-#if 1        
-        T forward_error[2];
-        Eigen::Matrix<T,3,1> tmp= K_*(rotation_matrix* real_corner + trans_vector);
-        // 重投影误差归一化
-        tmp(0,0) = tmp(0,0) / tmp(2,0);
-        tmp(1,0) = tmp(1,0) / tmp(2,0);
-        residual[0] = detect_corner(0,0) - tmp(0,0);
-        residual[1] = detect_corner(1,0) - tmp(1,0);
-        //计算重投影误差的二范数作为代价函数误差
- #endif       
-        return true;
-    }
-private:
-    Eigen::Vector3d tag_corner_;
-    Eigen::Vector3d real_corner_;
-    Eigen::Matrix3d K_;
-};
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class CostFunctor2{
@@ -158,7 +117,7 @@ public:
         forward_error[0] = tag_point_[0]  - tmp1(0,0);
         forward_error[1]= tag_point_[1] - tmp1(1,0);
 
-        // todo : 2 计算
+        // todo : 2 
         residual[0] = (forward_error[0] *forward_error[0])+(forward_error[1]*forward_error[1]);
         residual[1] = (1.0 - (RT[1]*RT[1]+RT[2]*RT[2]+RT[3]*RT[3]));
         residual[2] = (1.0 - (RT[8]*RT[8]+RT[9]*RT[9]+RT[10]*RT[10]));
@@ -177,12 +136,10 @@ private:
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-
 bool blShowImage = false;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 struct distortion_uv_4{
     int u_;
     int v_;
@@ -191,7 +148,8 @@ struct distortion_uv_4{
     uint32_t weight_21;
     uint32_t weight_22;
 };
-
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct distortion_uv{
     double u_;
     double v_;
@@ -207,32 +165,20 @@ void preBuildDistortedLookupTable(std::vector<std::vector<distortion_uv >> &look
 void myImageDistorted(cv::Mat &src , cv::Mat &image_undistort,const std::vector<std::vector<distortion_uv>> &lookupTable);
 cv::Mat ComputeH(const vector<cv::Point2f> &vP1, const vector<cv::Point2f> &vP2);
 void homography_compute3(double c[4][4] , Eigen::Matrix3d &H);
-
+void poseOptimizationAll(const std::vector<Eigen::Vector3d>& tag1_points, 
+                                             const std::vector<Eigen::Vector3d>& tag2_points,
+                                             const Eigen::Matrix3d &K,
+                                             Eigen::Matrix3d & R1, Eigen::Vector3d & t1,
+                                             Eigen::Matrix3d & R2, Eigen::Vector3d & t2 );
+void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points, 
+                                             const std::vector<Eigen::Vector3d>& tag2_points,
+                                             const Eigen::Matrix3d &K,
+                                             Eigen::Matrix3d & R1, Eigen::Vector3d & t1,
+                                             Eigen::Matrix3d & R2, Eigen::Vector3d & t2 );                                             
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//代价函数计算函数
-template <typename T>
-void reprojectionError( const Eigen::Matrix<T,3,3> &R, //旋转矩阵 R
-                                         const Eigen::Matrix<T,3,1> &t,  // t
-                                         const Eigen::Matrix<T,3,3> &K, // 相机内参
-                                         const Eigen::Matrix<double,3,1> &detect_corner,  // 检测到的角点
-                                         const Eigen::Matrix<double,3,1> &real_corner, // 真实角点
-                                         double &residual )//代价函数变量
+void homography_compute3(double c[4][4] , Eigen::Matrix3d &H) 
 {
-    T forward_error[2];
-    Eigen::Matrix<T,3,1> tmp= K*(R* real_corner + t);
-    // // 重投影误差归一化
-    tmp(0,0) = tmp(0,0)/tmp(2,0);
-    tmp(1,0) = tmp(1,0)/tmp(2,0);
-    forward_error[0] = detect_corner(0,0) - tmp(0,0);
-    forward_error[1] = detect_corner(1,0) - tmp(1,0);
-    //计算重投影误差的二范数作为代价函数误差
-    residual=forward_error[0]*forward_error[0]+forward_error[1]*forward_error[1];
-}
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-void homography_compute3(double c[4][4] , Eigen::Matrix3d &H) {
-    
     double A[] =  {
             c[0][0], c[0][1], 1,       0,       0, 0, -c[0][0]*c[0][2], -c[0][1]*c[0][2], c[0][2],
                   0,       0, 0, c[0][0], c[0][1], 1, -c[0][0]*c[0][3], -c[0][1]*c[0][3], c[0][3],
@@ -384,23 +330,6 @@ void YUV4202GRAY_CV_SAVE(std::string &inputPath ,cv::Mat&grayImg,int width,int h
     fread(data,height*width*sizeof(unsigned char),1,pFileIn);
 	grayImg.create(height,width, CV_8UC1);
     memcpy(grayImg.data, data, height*width*sizeof(unsigned char));
-
-    // if (blShowImage)
-    // {
-    //     std::string outputPath = "";
-    //     cv::namedWindow("gray_img", CV_WINDOW_NORMAL);
-    //     cv::imshow("gray_img",grayImg);
-    //     SaveImage(grayImg,outputPath);
-    //     cv::waitKey(0); 
-    //     cv::cvDestroyWindow("gray_img");
-    //     cv::Mat resultImage;
-    //     cv::equalizeHist(grayImg,resultImage);
-    //     cv::namedWindow("resultImage", CV_WINDOW_NORMAL);
-    //     cv::imshow("resultImage",resultImage);
-    //     cv::waitKey(0); 
-    //     cv::cvDestroyWindow("resultImage");
-    // }
-
     free(data);
     fclose(pFileIn);
 }
@@ -504,14 +433,11 @@ void myImageDistorted(cv::Mat &src , cv::Mat &image_undistort)
             }
         } // for 
     }// for
-    // 画图去畸变后图像
-    // cv::imshow("image undistorted", image_undistort);
-    // cv::waitKey();
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 bool SaveImage(const cv::Mat& img, std::string& absolutePath)
-  {
+{
     if(!img.data || absolutePath.empty())
     {
         return false;
@@ -582,7 +508,6 @@ void poseOptimizationAll(const std::vector<Eigen::Vector3d>& tag1_points,
     std::cout << "rotation_vec1" << endl << rotation_vec1.matrix() << endl;
     std::cout << "rotation_vec1 angle = " << endl << rotation_vec1.angle() << "\n";
     std::cout << "rotation_vec1 axis = " << endl << rotation_vec1.axis() << "\n";
-    
 #endif
     std::cout << "[ Before RT_] = " << RT_[0] <<","<<  RT_[1] <<","<<  RT_[2] <<","<<  RT_[3] <<","<<  RT_[4] <<","<<  RT_[5] <<","<<  RT_[6] << "\n";
     // Build the problem.
@@ -605,14 +530,16 @@ void poseOptimizationAll(const std::vector<Eigen::Vector3d>& tag1_points,
     ceres::Solver::Summary summary;
     ceres::Solve(solver_options,&problem,&summary);
     std::cout << "[ After RT_] = " << RT_[0] <<","<<  RT_[1] <<","<<  RT_[2] <<","<<  RT_[3] <<","<<  RT_[4] <<","<<  RT_[5] <<","<<  RT_[6] << "\n";
-
-
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points, const std::vector<Eigen::Vector3d>& tag2_points,
-                                        const Eigen::Matrix3d &K,std::vector<double>&RT1,std::vector<double>&RT2)
+void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points, 
+                                             const std::vector<Eigen::Vector3d>& tag2_points,
+                                             const Eigen::Matrix3d &K,
+                                             Eigen::Matrix3d & R1, Eigen::Vector3d & t1,
+                                             Eigen::Matrix3d & R2, Eigen::Vector3d & t2 )
 {
+    // 
     std::vector<Eigen::Vector3d> real_points; 
     real_points.resize(5);
     Eigen::Vector3d tagPoint0(-0.03,0.03,0.0);
@@ -626,43 +553,41 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points, const std
     real_points[3]= tagPoint3;
     real_points[4]= tagCenter;
 
-    double RT1_[12] = {RT1[0],RT1[1],RT1[2],RT1[3],RT1[4],RT1[5],RT1[6],RT1[7],RT1[8],RT1[9],RT1[10],RT1[11]};
-    double RT2_[12] = {RT2[0],RT2[1],RT2[2],RT2[3],RT2[4],RT2[5],RT2[6],RT2[7],RT2[8],RT2[9],RT2[10],RT2[11]};
+    // 旋转矩阵转成旋转向量
+    Eigen::AngleAxisd rotation_vec1;
+    rotation_vec1.fromRotationMatrix(R1);
+    Eigen::AngleAxisd rotation_vec2;
+    rotation_vec2.fromRotationMatrix(R2);
 
-    std::cout << "[RT1_] = " << RT1[0] <<","<<  RT1[1] <<","<<  RT1[2] <<","<<  RT1[3] <<","<<  RT1[4] <<","<<  RT1[5] <<","<<  RT1[6] << "\n";
+    double RT_[14] = {rotation_vec1.angle(),rotation_vec1.axis()[0],rotation_vec1.axis()[1],rotation_vec1.axis()[2],t1[0],t1[1],t1[2],
+                                    rotation_vec2.angle(),rotation_vec2.axis()[0],rotation_vec2.axis()[1],rotation_vec2.axis()[2],t2[0],t2[1],t2[2]};
 
+#if 0
+    std::cout << "rotation_vec1" << endl << rotation_vec1.matrix() << endl;
+    std::cout << "rotation_vec1 angle = " << endl << rotation_vec1.angle() << "\n";
+    std::cout << "rotation_vec1 axis = " << endl << rotation_vec1.axis() << "\n";
+#endif
+    std::cout << "[ Before RT_] = " << RT_[0] <<","<<  RT_[1] <<","<<  RT_[2] <<","<<  RT_[3] <<","<<  RT_[4] <<","<<  RT_[5] <<","<<  RT_[6] << "\n";
     // Build the problem.
-    Problem problem;
-
-      
-
+    ceres::Problem problem;
     for(int i = 0 ; i < 4; i++)
     {
-        auto tmp = tag1_points[i];
-        tmp[0] = tag1_points[i][0] + 100.0;
-        CostFunctor *RT1_cost_functor= new CostFunctor(tmp,real_points[i],K);
-        //ceres自动求导求增量方程<代价函数类型，代价函数维度，优化变量维度>（代价函数）
-        problem.AddResidualBlock(        
-                new AutoDiffCostFunction<CostFunctor,1,12> (RT1_cost_functor), nullptr,RT1_);
+        CostFunctor2 *Cost_functor = new CostFunctor2 (tag1_points[i],tag1_points[4],tag2_points[4],real_points[i],K,1);
+        problem.AddResidualBlock( new AutoDiffCostFunction<CostFunctor2,3,14> (Cost_functor), nullptr,RT_);
     }
     for(int i = 0 ; i < 4; i++)
     {
-        CostFunctor *RT2_cost_functor= new CostFunctor(tag2_points[i],real_points[i],K);
-        //ceres自动求导求增量方程<代价函数类型，代价函数维度，优化变量维度>（代价函数）
-        problem.AddResidualBlock(        
-                new AutoDiffCostFunction<CostFunctor,2,12> (RT2_cost_functor), new ceres::CauchyLoss(1),RT2_);
+        CostFunctor2 *Cost_functor2 = new CostFunctor2 (tag2_points[i],tag1_points[4],tag2_points[4],real_points[i],K,2);
+        problem.AddResidualBlock(new AutoDiffCostFunction<CostFunctor2,3,14> (Cost_functor2), nullptr ,RT_);
     }
     // Run the solver!
     ceres::Solver::Options solver_options;//实例化求解器对象
-    //线性求解器的类型，用于计算Levenberg-Marquardt算法每次迭代中线性最小二乘问题的解
     solver_options.linear_solver_type=ceres::DENSE_NORMAL_CHOLESKY;
-    //记录优化过程，输出到cout位置
     solver_options.minimizer_progress_to_stdout= true;
-    //ceres求解运算
     //实例化求解对象
     ceres::Solver::Summary summary;
-    //求解
     ceres::Solve(solver_options,&problem,&summary);
+    std::cout << "[ After RT_] = " << RT_[0] <<","<<  RT_[1] <<","<<  RT_[2] <<","<<  RT_[3] <<","<<  RT_[4] <<","<<  RT_[5] <<","<<  RT_[6] << "\n";
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -834,8 +759,8 @@ int main(int argc, char *argv[])
                 }
                 // printf("center = %f ,%f \n",det->c[0],det->c[1]);
                 // // print Homography Matrix
-                printf("Homography Matrix :  \n %f,%f,%f \n %f,%f,%f\n  %f,%f,%f\n", det->H->data[0],det->H->data[1],det->H->data[2],det->H->data[3],
-                            det->H->data[4],det->H->data[5],det->H->data[6],det->H->data[7],det->H->data[8]);
+                // printf("Homography Matrix :  \n %f,%f,%f \n %f,%f,%f\n  %f,%f,%f\n", det->H->data[0],det->H->data[1],det->H->data[2],det->H->data[3],
+                //             det->H->data[4],det->H->data[5],det->H->data[6],det->H->data[7],det->H->data[8]);
             };
             printDetectResult();
             ///////////////////////////////////////////////////////////////////////////
