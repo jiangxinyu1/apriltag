@@ -70,18 +70,15 @@ using ceres::Solver;
 class CostFunctor{
 public:
     // 构造函数
-    CostFunctor(const Eigen::Vector3d& tag_point, 
-                            const  Eigen::Vector3d& tag_center_1_point,
-                            const  Eigen::Vector3d& tag_center_2_point,
-                            const Eigen::Vector3d& real_point,
-                            const Eigen::Matrix3d& KMat,
-                            const int tagFlag):
+    CostFunctor(const Eigen::Vector3d& tag_point,  const  Eigen::Vector3d& tag_center_1_point, const  Eigen::Vector3d& tag_center_2_point,
+                          const Eigen::Vector3d& real_point, const Eigen::Matrix3d& KMat, const int tagFlag) :
         tag_point_(tag_point), tag_center_1_point_(tag_center_1_point), tag_center_2_point_(tag_center_2_point),real_point_(real_point),KMat_(KMat) ,tagFlag_(tagFlag){}
 
     // 定义残差项计算方法
     template <typename T>
     bool operator() (const T* const q_1,const T* const t_1, const T* const q_2,const T* const t_2, T* residual) const 
     {
+        // 将数据组织旋转矩阵
         Eigen::Map<const Eigen::Matrix<T, 3, 1>> t1(t_1);
         Eigen::Map<const Eigen::Matrix<T, 3, 1>> t2(t_2);
         Eigen::Map<const Eigen::Quaternion<T>> quaternion1(q_1);
@@ -105,10 +102,8 @@ public:
         tmp1(2,0) = tmp1(2,0) / tmp1(2,0);
         forward_error[0] = tag_point_[0]  - tmp1(0,0);
         forward_error[1]= tag_point_[1] - tmp1(1,0);
-
         // todo : 2 
         residual[0] = (forward_error[0] *forward_error[0])+(forward_error[1]*forward_error[1]);
-
         return true;
     } // operator ()
 
@@ -612,6 +607,8 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points,
     Eigen::Quaterniond quaternion1(R1);
     Eigen::Quaterniond quaternion2(R2);
 
+    // std::cout << "Before :\n" << "quaternion1 = \n"<< quaternion1.coeffs() << "\n"<< "quaternion2 = \n"<< quaternion2.coeffs() << "\n";
+
     // Build the problem.
     ceres::Problem problem;
     ceres::LocalParameterization* quaternion_local_parameterization = new ceres::EigenQuaternionParameterization;
@@ -633,13 +630,22 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points,
         problem.SetParameterization(quaternion2.coeffs().data(), quaternion_local_parameterization);
     }
 
-    // Run the solver!
+    // todo : Solve
     ceres::Solver::Options solver_options;//实例化求解器对象
     solver_options.linear_solver_type=ceres::DENSE_NORMAL_CHOLESKY;
     solver_options.minimizer_progress_to_stdout= true;
     //实例化求解对象
     ceres::Solver::Summary summary;
     ceres::Solve(solver_options,&problem,&summary);
+
+    // Todo: print result
+    Eigen::Matrix<double,3,3> newR1 = quaternion1.toRotationMatrix();
+    Eigen::Matrix<double,3,3> newR2 = quaternion2.toRotationMatrix();
+    Eigen::Vector3d m = newR1.col(2);
+    Eigen::Vector3d n = newR2.col(2);
+    auto theta = std::acos((double)(m.transpose()*n) / (m.norm()*n.norm()));
+    printf ("[AFTER : ] The angle diff between id-3 and id-6 = %f \n",theta * 180/3.14159);
+    // std::cout << summary.FullReport() << '\n';
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -977,15 +983,6 @@ int main(int argc, char *argv[])
                 Eigen::Vector3d tmp; 
                 tmp << double(det->c[0]),double(det->c[1]),1.0;
                 tag1_points[4] = tmp;
-                RT1.resize(12);
-                for (int index =0; index<9; index++)
-                {
-                    RT1[index] = double(pose.R->data[index]);
-                }
-                for (int index =9; index<12; index++)
-                {
-                    RT1[index] = double(pose.t->data[index-9]);
-                }
                 id3ready = true;
             }
             if ( det->id == 6 )
@@ -1003,15 +1000,6 @@ int main(int argc, char *argv[])
                 tag2_points[4] = tmp;
                 rotationMatrixTag2 = rotation_matrix;
                 tranVecTag2 << double(pose.t->data[0]),double(pose.t->data[1]),double(pose.t->data[2]);
-                RT2.resize(12);
-                for (int index =0; index<9; index++)
-                {
-                    RT2[index] = (double)pose.R->data[index];
-                }
-                for (int index =9; index<12; index++)
-                {
-                    RT2[index] = (double)pose.t->data[index-9];
-                }
                 id6ready = true;
             }
             
@@ -1074,7 +1062,7 @@ int main(int argc, char *argv[])
         };
         printEstimateTagPose();
 
-        // todo：优化位姿
+        // todo：优化位姿 R t
         if ( id3ready && id6ready )
         {                
             poseOptimization(tag1_points,tag2_points,K,rotationMatrixTag1,tranVecTag1,rotationMatrixTag2,tranVecTag2);
