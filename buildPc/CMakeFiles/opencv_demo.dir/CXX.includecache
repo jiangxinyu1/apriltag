@@ -199,6 +199,10 @@ Eigen/Geometry
 -
 ceres/ceres.h
 -
+ceres/autodiff_cost_function.h
+/home/xinyu/workspace/360/apriltag/example/ceres/autodiff_cost_function.h
+ceres/local_parameterization.h
+/home/xinyu/workspace/360/apriltag/example/ceres/local_parameterization.h
 apriltag.h
 /home/xinyu/workspace/360/apriltag/example/apriltag.h
 tag36h11.h
