@@ -161,8 +161,8 @@ public:
         // todo : 2 计算
         residual[0] = (forward_error[0] *forward_error[0])+(forward_error[1]*forward_error[1]);
         residual[1] = (1.0 - (RT[1]*RT[1]+RT[2]*RT[2]+RT[3]*RT[3]));
-        // residual[1] = forward_error[1];
-        // residual[2] = (1.0 - (RT[1]*RT[1]+RT[2]*RT[2]+RT[3]*RT[3]));
+        residual[2] = (1.0 - (RT[8]*RT[8]+RT[9]*RT[9]+RT[10]*RT[10]));
+
         return true;
     } // operator ()
 
@@ -590,12 +590,12 @@ void poseOptimizationAll(const std::vector<Eigen::Vector3d>& tag1_points,
     for(int i = 0 ; i < 4; i++)
     {
         CostFunctor2 *Cost_functor = new CostFunctor2 (tag1_points[i],tag1_points[4],tag2_points[4],real_points[i],K,1);
-        problem.AddResidualBlock( new AutoDiffCostFunction<CostFunctor2,2,14> (Cost_functor), nullptr,RT_);
+        problem.AddResidualBlock( new AutoDiffCostFunction<CostFunctor2,3,14> (Cost_functor), nullptr,RT_);
     }
     for(int i = 0 ; i < 4; i++)
     {
         CostFunctor2 *Cost_functor2 = new CostFunctor2 (tag2_points[i],tag1_points[4],tag2_points[4],real_points[i],K,2);
-        problem.AddResidualBlock(new AutoDiffCostFunction<CostFunctor2,2,14> (Cost_functor2), nullptr ,RT_);
+        problem.AddResidualBlock(new AutoDiffCostFunction<CostFunctor2,3,14> (Cost_functor2), nullptr ,RT_);
     }
     // Run the solver!
     ceres::Solver::Options solver_options;//实例化求解器对象
@@ -931,7 +931,7 @@ int main(int argc, char *argv[])
                     det->p[i][1]  = corners[i].y;
                 }
             };
-            // updateDetwithNewCorners();
+            updateDetwithNewCorners();
 
 #if 1
             line(frame, Point(det->p[0][0], det->p[0][1]),
