@@ -96,20 +96,73 @@ public:
         {
             tmp1= KMat_*(R2* real_point_ + t2);
         }
+        // std::cout << "DEpth = Z = " << tmp1(2,0) << "DEpth = tz = " << t1[2] << "\n";
+        // std::cout << "t1 = " <<  t1[0] <<","<<t1[1] <<","<<t1[2]<< "\n";
+        // std::cout << "t2 = " <<  t2[0] <<","<<t2[1] <<","<<t2[2]<< "\n";
         T forward_error[2];
         tmp1(0,0) = tmp1(0,0) / tmp1(2,0);
         tmp1(1,0) = tmp1(1,0) / tmp1(2,0);
         tmp1(2,0) = tmp1(2,0) / tmp1(2,0);
         forward_error[0] = tag_point_[0]  - tmp1(0,0);
         forward_error[1]= tag_point_[1] - tmp1(1,0);
-        // todo : 2 
-        residual[0] = (forward_error[0] *forward_error[0])+(forward_error[1]*forward_error[1]);
+        /////////////////////////////////////////////////////////////////////////////////
+        // todo : 2 两个z轴的的夹角应为0
+        Eigen::Matrix<double,3,1> tt (0,0,1);
+        Eigen::Matrix<T,3,1> z1 = R1*tt;
+        Eigen::Matrix<T,3,1> z2 = R2*tt;
+        T r2 = ((z1.transpose()*z2).norm() /(z1.norm()*z2.norm())) -1.0 ;
+        /////////////////////////////////////////////////////////////////////////////////
+        // todo: 3 tag1 的每个点（角点与中心点）与 tag2 的中心点组成的向量与 tag2的pose垂
+        Eigen::Matrix<T,3,1> curPoint;
+        Eigen::Matrix<T,3,1> targetCenterPoint;
+        Eigen::Matrix<T,3,1> vec_corner_center;
+        T r3;
+        if ( tagFlag_ == 1 )
+        {
+            // 使用对应的tag系下的点，计算当前点的深度值
+            Eigen::Matrix<T,3,1> tmp =  R1*real_point_+t1;
+            curPoint[2] =tmp[2];
+            curPoint[0] = curPoint[2]*(tag_point_[0] - KMat_(0,2))/KMat_(0,0);
+            curPoint[1] = curPoint[2]*(tag_point_[1] - KMat_(1,2))/KMat_(1,1);
+            curPoint = R1.inverse()*(curPoint-t1);
+            // 
+            targetCenterPoint[2] = t2[2];
+            targetCenterPoint[0] = targetCenterPoint[2]*(tag_center_2_point_[0] - KMat_(0,2))/KMat_(0,0);
+            targetCenterPoint[1] = targetCenterPoint[2]*(tag_center_2_point_[1] - KMat_(1,2))/KMat_(1,1);
+            targetCenterPoint = R2.inverse()*(targetCenterPoint-t2);
+            // 
+            vec_corner_center = curPoint - targetCenterPoint;
+            r3 = (vec_corner_center.transpose()*z2).norm();
+        }
+        if ( tagFlag_ == 2 )
+        {
+            // 使用对应的tag系下的点，计算当前点的深度值
+            Eigen::Matrix<T,3,1> tmp =  R2*real_point_+t2;
+            curPoint[2] =tmp[2];
+            curPoint[0] = curPoint[2]*(tag_point_[0] - KMat_(0,2))/KMat_(0,0);
+            curPoint[1] = curPoint[2]*(tag_point_[1] - KMat_(1,2))/KMat_(1,1);
+            curPoint = R2.inverse()*(curPoint-t2);
+            // 
+            targetCenterPoint[2] = t1[2];
+            targetCenterPoint[0] = targetCenterPoint[2]*(tag_center_1_point_[0] - KMat_(0,2))/KMat_(0,0);
+            targetCenterPoint[1] = targetCenterPoint[2]*(tag_center_1_point_[1] - KMat_(1,2))/KMat_(1,1);
+            targetCenterPoint = R1.inverse()*(targetCenterPoint-t1);
+            // 
+            vec_corner_center = curPoint - targetCenterPoint;
+            r3 = (vec_corner_center.transpose()*z1).norm();
+        }
+        /////////////////////////////////////////////////////////////////////////////////
+        residual[0] = forward_error[0] ;// 重投影误差第一项
+        residual[1] = forward_error[1] ; // 重投影误差第二项
+        residual[2] = r2*100.0; // 给权重
+        residual[3] = r3*100.0; // 给权重
+        /////////////////////////////////////////////////////////////////////////////////
         return true;
     } // operator ()
 
 private:
     const Eigen::Vector3d tag_point_;
-    const Eigen::Vector3d tag_center_1_point_;
+    const Eigen::Vector3d tag_center_1_point_; // 图像系下中心点（u,v,1）
     const Eigen::Vector3d tag_center_2_point_;
     const Eigen::Vector3d real_point_;
     Eigen::Matrix3d KMat_;
@@ -554,11 +607,7 @@ void poseOptimizationAll(const std::vector<Eigen::Vector3d>& tag1_points,
     double RT_[14] = {rotation_vec1.angle(),rotation_vec1.axis()[0],rotation_vec1.axis()[1],rotation_vec1.axis()[2],t1[0],t1[1],t1[2],
                                     rotation_vec2.angle(),rotation_vec2.axis()[0],rotation_vec2.axis()[1],rotation_vec2.axis()[2],t2[0],t2[1],t2[2]};
 
-#if 0
-    std::cout << "rotation_vec1" << endl << rotation_vec1.matrix() << endl;
-    std::cout << "rotation_vec1 angle = " << endl << rotation_vec1.angle() << "\n";
-    std::cout << "rotation_vec1 axis = " << endl << rotation_vec1.axis() << "\n";
-#endif
+
     std::cout << "[ Before RT_] = " << RT_[0] <<","<<  RT_[1] <<","<<  RT_[2] <<","<<  RT_[3] <<","<<  RT_[4] <<","<<  RT_[5] <<","<<  RT_[6] << "\n";
     // Build the problem.
     ceres::Problem problem;
@@ -589,7 +638,6 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points,
                                              Eigen::Matrix3d & R1, Eigen::Vector3d & t1,
                                              Eigen::Matrix3d & R2, Eigen::Vector3d & t2 )
 {
-    // 
     std::vector<Eigen::Vector3d> real_points; 
     real_points.resize(5);
     Eigen::Vector3d tagPoint0(-0.03,0.03,0.0);
@@ -613,25 +661,24 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points,
     ceres::Problem problem;
     ceres::LocalParameterization* quaternion_local_parameterization = new ceres::EigenQuaternionParameterization;
 
-    for(int i = 0 ; i < 4; i++)
+    for(int i = 0 ; i < 5; i++)
     {
         CostFunctor *Cost_functor1 = new CostFunctor (tag1_points[i],tag1_points[4],tag2_points[4],real_points[i],K,1);
-        problem.AddResidualBlock( new AutoDiffCostFunction<CostFunctor,1,4,3,4,3> (Cost_functor1), nullptr,
+        problem.AddResidualBlock( new AutoDiffCostFunction<CostFunctor,4,4,3,4,3> (Cost_functor1), nullptr,
                                                          quaternion1.coeffs().data(),t1.data(),quaternion2.coeffs().data(),t2.data());
         problem.SetParameterization(quaternion1.coeffs().data(), quaternion_local_parameterization);
         problem.SetParameterization(quaternion2.coeffs().data(), quaternion_local_parameterization);
     }
-    for(int i = 0 ; i < 4; i++)
+    for(int i = 0 ; i < 5; i++)
     {
         CostFunctor *Cost_functor2 = new CostFunctor (tag2_points[i],tag1_points[4],tag2_points[4],real_points[i],K,2);
-        problem.AddResidualBlock( new AutoDiffCostFunction<CostFunctor,1,4,3,4,3> (Cost_functor2), nullptr,
+        problem.AddResidualBlock( new AutoDiffCostFunction<CostFunctor,4,4,3,4,3> (Cost_functor2), nullptr,
                                                          quaternion1.coeffs().data(),t1.data(),quaternion2.coeffs().data(),t2.data());
         problem.SetParameterization(quaternion1.coeffs().data(), quaternion_local_parameterization);
         problem.SetParameterization(quaternion2.coeffs().data(), quaternion_local_parameterization);
     }
-
     // todo : Solve
-    ceres::Solver::Options solver_options;//实例化求解器对象
+    ceres::Solver::Options solver_options;//实例化求解器对象    
     solver_options.linear_solver_type=ceres::DENSE_NORMAL_CHOLESKY;
     solver_options.minimizer_progress_to_stdout= true;
     //实例化求解对象
@@ -639,12 +686,14 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points,
     ceres::Solve(solver_options,&problem,&summary);
 
     // Todo: print result
-    Eigen::Matrix<double,3,3> newR1 = quaternion1.toRotationMatrix();
-    Eigen::Matrix<double,3,3> newR2 = quaternion2.toRotationMatrix();
-    Eigen::Vector3d m = newR1.col(2);
-    Eigen::Vector3d n = newR2.col(2);
+    R1 = quaternion1.toRotationMatrix();
+    R2 = quaternion2.toRotationMatrix();
+    Eigen::Vector3d m = R1.col(2);
+    Eigen::Vector3d n = R2.col(2);
     auto theta = std::acos((double)(m.transpose()*n) / (m.norm()*n.norm()));
-    printf ("[AFTER : ] The angle diff between id-3 and id-6 = %f \n",theta * 180/3.14159);
+    printf ("[AFTER]-----------------------------------The angle diff between id-3 and id-6 = %f \n",theta * 180/3.14159);
+    std::cout << "R1.transpose()*R1 = \n" << (R1.transpose()*R1) << std::endl;
+    std::cout << "R2.transpose()*R2= \n" << (R2.transpose()*R2)<< std::endl;
     // std::cout << summary.FullReport() << '\n';
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -721,7 +770,7 @@ int main(int argc, char *argv[])
 
         //  TODO： 1 循环读取YUV将其转成GRAY
         auto t1 = getTime();
-        std::string new_path = "/data/rgb/left-"+std::to_string(imageIndex)+".yuv";
+        std::string new_path = "/data/rgb/"+std::to_string(imageIndex)+".yuv";
         // YU12toRGB(new_path,rgbImageRaw,1920,1080,0);
         YUV4202GRAY_CV_SAVE(new_path,rgbImageRaw,1920,1080);
         auto t2 = getTime();
@@ -1007,7 +1056,6 @@ int main(int argc, char *argv[])
 
             auto reprojection = [&]()
             {
-                
                 Eigen::Vector3d transform_vector;
                 transform_vector << pose.t->data[0],pose.t->data[1],pose.t->data[2];
                 Eigen::Vector3d tagPoint0(-0.03,0.03,0.0);
@@ -1034,7 +1082,6 @@ int main(int argc, char *argv[])
                 // frame.at<uint8_t>(std::round(c2[1]/c2[2]),std::round(c2[0]/c2[2])) = 255;
                 // frame.at<uint8_t>(std::round(c3[1]/c3[2]),std::round(c3[0]/c3[2])) = 255;
                 // frame.at<uint8_t>(std::round(c[1]/c[2]),std::round(c[0]/c[2])) = 255;
-
             };
             // reprojection();
 
@@ -1048,7 +1095,6 @@ int main(int argc, char *argv[])
                 image_with_subpixel_corners.at<uint8_t>(std::round(corners_final[corner_id].y),std::round(corners_final[corner_id].x)) = 255;
                 cv::circle(image_with_subpixel_corners, corners_final[corner_id], 5, cv::Scalar(0, 255, 0), 2, 8, 0);
             }
-            
         } // FOR det
         
         auto printEstimateTagPose = [&]()
