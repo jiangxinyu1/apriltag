@@ -638,24 +638,12 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points,
                                              Eigen::Matrix3d & R1, Eigen::Vector3d & t1,
                                              Eigen::Matrix3d & R2, Eigen::Vector3d & t2 )
 {
-    std::vector<Eigen::Vector3d> real_points; 
-    real_points.resize(5);
-    Eigen::Vector3d tagPoint0(-0.03,0.03,0.0);
-    Eigen::Vector3d tagPoint1(0.03,0.03,0.0);
-    Eigen::Vector3d tagPoint2(0.03,-0.03,0.0);
-    Eigen::Vector3d tagPoint3(-0.03,-0.03,0.0);
-    Eigen::Vector3d tagCenter(0.0,0.0,0.0);
-    real_points[0]= tagPoint0;
-    real_points[1]= tagPoint1;
-    real_points[2]= tagPoint2;
-    real_points[3]= tagPoint3;
-    real_points[4]= tagCenter;
+    const std::vector<Eigen::Vector3d> real_points{ Eigen::Vector3d (-0.03,0.03,0.0), Eigen::Vector3d (0.03,0.03,0.0), Eigen::Vector3d (0.03,-0.03,0.0),
+                                                                                        Eigen::Vector3d (-0.03,-0.03,0.0), Eigen::Vector3d (0.0,0.0,0.0)};
 
     // 旋转矩阵转成四元数
     Eigen::Quaterniond quaternion1(R1);
     Eigen::Quaterniond quaternion2(R2);
-
-    // std::cout << "Before :\n" << "quaternion1 = \n"<< quaternion1.coeffs() << "\n"<< "quaternion2 = \n"<< quaternion2.coeffs() << "\n";
 
     // Build the problem.
     ceres::Problem problem;
@@ -828,17 +816,15 @@ int main(int argc, char *argv[])
         cv::Mat image_with_init_corners = frame1.clone();
         cv::Mat image_with_gftt_corners = frame1.clone();
         cv::Mat image_with_subpixel_corners = frame1.clone();
-        std::vector<Eigen::Vector3d> tag1_points;
-        std::vector<Eigen::Vector3d> tag2_points;
-        Eigen::Matrix3d rotationMatrixTag1;
+        std::vector<Eigen::Vector3d> tag1_points; // 用于存储Tag1的图像上角点及中心点
+        std::vector<Eigen::Vector3d> tag2_points; // 用于存储Tag2的图像上角点及中心点
+        Eigen::Matrix3d rotationMatrixTag1; 
         Eigen::Matrix3d rotationMatrixTag2;
         Eigen::Vector3d tranVecTag1;
         Eigen::Vector3d tranVecTag2;
-        std::vector<double> RT1;
-        std::vector<double> RT2;
-
+  
         /*  
-        *   遍历每个的检测结果
+        *   遍历每个检测结果
         */
         for (int i = 0; i < zarray_size(detections); i++) 
         {
@@ -1002,19 +988,13 @@ int main(int argc, char *argv[])
             info.fy = 935.122766;
             info.cx = (960.504061-300);
             info.cy = (562.707915-200);
+            K << info.fx,0,info.cx,0,info.fy,info.cy,0,0,1;
             // Then call estimate_tag_pose.
             apriltag_pose_t pose;
             double err = estimate_tag_pose(&info, &pose);
 
-            rotation_matrix<<pose.R->data[0],pose.R->data[1],pose.R->data[2],pose.R->data[3],pose.R->data[4],pose.R->data[5],pose.R->data[6],pose.R->data[7],pose.R->data[8];
-            Eigen::AngleAxisd rotation_vector;
-            rotation_vector.fromRotationMatrix(rotation_matrix);
-            Eigen::Vector3d eulerAngle=rotation_vector.matrix().eulerAngles(2,1,0); // ZYX 
-            // print rotation matrix
-            // printf("R = \n%f,%f,%f\n%f,%f,%f\n%f,%f,%f\n"
-            // ,pose.R->data[0],pose.R->data[1],pose.R->data[2],pose.R->data[3],pose.R->data[4],pose.R->data[5],pose.R->data[6],pose.R->data[7],pose.R->data[8]);
-            // print eulerAngle
-            // printf("Angles =  %f, %f ,%f\n",eulerAngle[2]*180/3.14159,eulerAngle[1]*180/3.14159,eulerAngle[0]*180/3.14159);
+            // 将位姿估计的结果整理成旋转矩阵
+            rotation_matrix << pose.R->data[0],pose.R->data[1],pose.R->data[2],pose.R->data[3],pose.R->data[4],pose.R->data[5],pose.R->data[6],pose.R->data[7],pose.R->data[8];
 
             if ( det->id == 3 )
             {
@@ -1022,16 +1002,11 @@ int main(int argc, char *argv[])
                 tag1_points.resize(5);
                 for(int index = 0 ; index < 4; index++ )
                 {
-                    Eigen::Vector3d tmp;
-                    tmp << double(corners_final[index].x) , double(corners_final[index].y) ,1.0;
-                    tag1_points[index] = tmp;
+                    tag1_points[index] = Eigen::Vector3d(double(corners_final[index].x) , double(corners_final[index].y) ,1.0);
                 }
+                tag1_points[4] = Eigen::Vector3d (double(det->c[0]),double(det->c[1]),1.0);
                 rotationMatrixTag1 = rotation_matrix;
-                tranVecTag1 << double(pose.t->data[0]),double(pose.t->data[1]),double(pose.t->data[2]);
-
-                Eigen::Vector3d tmp; 
-                tmp << double(det->c[0]),double(det->c[1]),1.0;
-                tag1_points[4] = tmp;
+                tranVecTag1 = Eigen::Vector3d (double(pose.t->data[0]),double(pose.t->data[1]),double(pose.t->data[2]));
                 id3ready = true;
             }
             if ( det->id == 6 )
@@ -1040,20 +1015,15 @@ int main(int argc, char *argv[])
                 tag2_points.resize(5);
                 for(int index = 0 ; index < 4; index++ )
                 {
-                    Eigen::Vector3d tmp;
-                    tmp << (double)corners_final[index].x , (double)corners_final[index].y,1.0;
-                    tag2_points[index] = tmp;
+                    tag2_points[index] = Eigen::Vector3d(double(corners_final[index].x) , double(corners_final[index].y) ,1.0);
                 }
-                Eigen::Vector3d tmp; 
-                tmp << (double)det->c[0],(double)det->c[1],1.0;
-                tag2_points[4] = tmp;
+                tag2_points[4] = Eigen::Vector3d (double(det->c[0]),double(det->c[1]),1.0);
                 rotationMatrixTag2 = rotation_matrix;
-                tranVecTag2 << double(pose.t->data[0]),double(pose.t->data[1]),double(pose.t->data[2]);
+                tranVecTag2=  Eigen::Vector3d (double(pose.t->data[0]),double(pose.t->data[1]),double(pose.t->data[2]));
                 id6ready = true;
             }
             
-            K << info.fx,0,info.cx,0,info.fy,info.cy,0,0,1;
-
+            // 
             auto reprojection = [&]()
             {
                 Eigen::Vector3d transform_vector;
@@ -1108,7 +1078,7 @@ int main(int argc, char *argv[])
         };
         printEstimateTagPose();
 
-        // todo：优化位姿 R t
+        // todo：当前图像同时正确检测到两个Tag时，构建约束优化位姿 R1 t1 R2 t2
         if ( id3ready && id6ready )
         {                
             poseOptimization(tag1_points,tag2_points,K,rotationMatrixTag1,tranVecTag1,rotationMatrixTag2,tranVecTag2);
