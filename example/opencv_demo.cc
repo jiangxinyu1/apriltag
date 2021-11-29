@@ -771,7 +771,7 @@ int main(int argc, char *argv[])
     preBuildDistortedLookupTable(distortLookupTable,(1920-600),(1080-400));
 
     Mat gray, rgbImage,rgbImageRaw;
-    const int testNumber = 10;
+    const int testNumber = 31;
 
     for ( int imageIndex = 4 ; imageIndex < testNumber; imageIndex++)
     {
@@ -992,9 +992,7 @@ int main(int argc, char *argv[])
             int baseline;
             Size textsize = getTextSize(text, fontface, fontscale, 2,
                                             &baseline);
-            putText(frame, text, Point(det->c[0]-textsize.width/2,
-                                       det->c[1]+textsize.height/2),
-                    fontface, fontscale, Scalar(0xff, 0x99, 0), 2);
+            putText(frame, text, Point(det->c[0]-textsize.width/2,det->c[1]+textsize.height/2),fontface, fontscale, Scalar(0xff, 0x99, 0), 2);
 
             // TODO : 3 estimate_tag_pose
             // First create an apriltag_detection_info_t struct using your known parameters.
@@ -1095,17 +1093,15 @@ int main(int argc, char *argv[])
         };
         printEstimateTagPose();
 
-        // todo：当前图像同时正确检测到两个Tag时，构建约束优化位姿 R1 t1 R2 t2
+        // TODO: R1 t1 R2 t2
         if ( id3ready && id6ready )
         {                
             poseOptimization(tag1_points,tag2_points,K,rotationMatrixTag1,tranVecTag1,rotationMatrixTag2,tranVecTag2);
             // poseOptimizationAll(tag1_points,tag2_points,K,rotationMatrixTag1,tranVecTag1,rotationMatrixTag2,tranVecTag2);
         }
-        //  优化后再次进行重投影
+        //  TODO: 对优化后的pose进行的检验
 
-        
-        
-        
+
 
         auto t8 = getTime();
         // std::cout << "[Time] estimate_tag_pose = " << t8-t7_<< "ms\n";
