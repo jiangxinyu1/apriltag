@@ -170,8 +170,13 @@ public:
             r4 = (vec_.transpose()*z1).norm();
         }
         /////////////////////////////////////////////////////////////////////////////////
-        T r5;
-        r5 = ((t1-t2).transpose()*(t1-t2))(0,0)-(0.205*0.205);
+        T r5 , r6;
+        // r5 = ((t1-t2).transpose()*(t1-t2))(0,0)-(0.205*0.205);
+        Eigen::Matrix<T,1,1> e_y = (t1-t2).transpose()*Eigen::Vector3d(0,1,0);
+        Eigen::Matrix<T,1,1> e_x = (t1-t2).transpose()*Eigen::Vector3d(1,0,0);
+        r5 = (e_y.transpose()*e_y)(0,0);
+        r6 = ((e_x.transpose()*e_x)(0,0)) - 0.205*0.205;
+
 
         /////////////////////////////////////////////////////////////////////////////////
         // std::cout << "forward_error = " << forward_error[0] << "\n";
@@ -183,6 +188,7 @@ public:
         residual[2] = r2*100.0; // 给权重
         residual[3] = r4*100.0; // 给权重
         residual[4] = r5*100.0; // 给权重
+        residual[5] = r6*100.0; // 给权重
 
         /////////////////////////////////////////////////////////////////////////////////
         return true;
@@ -671,7 +677,7 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points,
     for(int i = 0 ; i < 5; i++)
     {
         CostFunctor *Cost_functor1 = new CostFunctor (tag1_points[i],tag1_points[4],tag2_points[4],real_points[i],K,1);
-        problem.AddResidualBlock( new AutoDiffCostFunction<CostFunctor,5,4,3,4,3> (Cost_functor1), nullptr,
+        problem.AddResidualBlock( new AutoDiffCostFunction<CostFunctor,6,4,3,4,3> (Cost_functor1), nullptr,
                                                          quaternion1.coeffs().data(),t1.data(),quaternion2.coeffs().data(),t2.data());
         problem.SetParameterization(quaternion1.coeffs().data(), quaternion_local_parameterization);
         problem.SetParameterization(quaternion2.coeffs().data(), quaternion_local_parameterization);
@@ -679,7 +685,7 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points,
     for(int i = 0 ; i < 5; i++)
     {
         CostFunctor *Cost_functor2 = new CostFunctor (tag2_points[i],tag1_points[4],tag2_points[4],real_points[i],K,2);
-        problem.AddResidualBlock( new AutoDiffCostFunction<CostFunctor,5,4,3,4,3> (Cost_functor2), nullptr,
+        problem.AddResidualBlock( new AutoDiffCostFunction<CostFunctor,6,4,3,4,3> (Cost_functor2), nullptr,
                                                          quaternion1.coeffs().data(),t1.data(),quaternion2.coeffs().data(),t2.data());
         problem.SetParameterization(quaternion1.coeffs().data(), quaternion_local_parameterization);
         problem.SetParameterization(quaternion2.coeffs().data(), quaternion_local_parameterization);
@@ -1100,6 +1106,10 @@ int main(int argc, char *argv[])
             // poseOptimizationAll(tag1_points,tag2_points,K,rotationMatrixTag1,tranVecTag1,rotationMatrixTag2,tranVecTag2);
         }
         //  TODO: 对优化后的pose进行的检验
+        auto checkTagPose = [&]()
+        {
+            
+        };
 
 
 
