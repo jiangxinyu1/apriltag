@@ -176,7 +176,8 @@ public:
         /////////////////////////////////////////////////////////////////////////////////
         // std::cout << "forward_error = " << forward_error[0] << "\n";
         // std::cout << "r2 = " << r2<< "\n";
-        // std::cout << "r3 = " << r3 << "\n";
+        // std::cout << "r4 = " << r4 << "\n";
+        // std::cout << "r5 = " << r5 << "\n";
         residual[0] = forward_error[0] ;// 重投影误差第一项
         residual[1] = forward_error[1] ; // 重投影误差第二项
         residual[2] = r2*100.0; // 给权重
