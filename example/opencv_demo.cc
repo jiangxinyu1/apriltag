@@ -96,9 +96,6 @@ public:
         {
             tmp1= KMat_*(R2* real_point_ + t2);
         }
-        // std::cout << "DEpth = Z = " << tmp1(2,0) << "DEpth = tz = " << t1[2] << "\n";
-        // std::cout << "t1 = " <<  t1[0] <<","<<t1[1] <<","<<t1[2]<< "\n";
-        // std::cout << "t2 = " <<  t2[0] <<","<<t2[1] <<","<<t2[2]<< "\n";
         T forward_error[2];
         tmp1(0,0) = tmp1(0,0) / tmp1(2,0);
         tmp1(1,0) = tmp1(1,0) / tmp1(2,0);
@@ -110,9 +107,10 @@ public:
         Eigen::Matrix<double,3,1> tt (0,0,1);
         Eigen::Matrix<T,3,1> z1 = R1*tt;
         Eigen::Matrix<T,3,1> z2 = R2*tt;
-        T r2 = ((z1.transpose()*z2).norm() /(z1.norm()*z2.norm())) -1.0 ;
+        // T r2 = ((z1.transpose()*z2).norm() /(z1.norm()*z2.norm())) -1.0 ;
+        T r2 = (z1.cross(z2)).norm();
         /////////////////////////////////////////////////////////////////////////////////
-        // todo: 3 tag1 的每个点（角点与中心点）与 tag2 的中心点组成的向量与 tag2的pose垂
+        // todo: 3  Camera系下，tag1 的每个点（角点与中心点）与 tag2 的中心点组成的向量与 tag2的pose垂直
         Eigen::Matrix<T,3,1> curPoint;
         Eigen::Matrix<T,3,1> targetCenterPoint;
         Eigen::Matrix<T,3,1> vec_corner_center;
@@ -151,13 +149,40 @@ public:
             r3 = (vec_corner_center.transpose()*z1).norm();
         }
         /////////////////////////////////////////////////////////////////////////////////
+        // todo: 3-2  Camera系下，tag1 的每个点（角点与中心点）与 tag2 的中心点组成的向量与 tag2的pose垂直
+        Eigen::Matrix<T,3,1> TagPoint_camera;
+        Eigen::Matrix<T,3,1> TagCenterPoint_camera;
+        Eigen::Matrix<T,3,1> vec_;
+        T r4;
+        if ( tagFlag_ == 1 )
+        {
+            TagPoint_camera =   R1*real_point_+t1;
+            TagCenterPoint_camera = R2*Eigen::Vector3d(0,0,0)+t2;
+            vec_ = TagPoint_camera - TagCenterPoint_camera;
+            r4 = (vec_.transpose()*z2).norm();
+        }
+        if ( tagFlag_ == 2 )
+        {
+            // 使用对应的tag系下的点，计算当前点的深度值
+            TagPoint_camera =   R2*real_point_+t2;
+            TagCenterPoint_camera = R1*Eigen::Vector3d(0,0,0)+t1;
+            vec_ = TagPoint_camera - TagCenterPoint_camera;
+            r4 = (vec_.transpose()*z1).norm();
+        }
+        /////////////////////////////////////////////////////////////////////////////////
+        T r5;
+        r5 = ((t1-t2).transpose()*(t1-t2))(0,0)-(0.205*0.205);
+
+        /////////////////////////////////////////////////////////////////////////////////
         // std::cout << "forward_error = " << forward_error[0] << "\n";
         // std::cout << "r2 = " << r2<< "\n";
         // std::cout << "r3 = " << r3 << "\n";
         residual[0] = forward_error[0] ;// 重投影误差第一项
         residual[1] = forward_error[1] ; // 重投影误差第二项
-        residual[2] = r2*1000.0; // 给权重
-        residual[3] = r3*1000.0; // 给权重
+        residual[2] = r2*100.0; // 给权重
+        residual[3] = r4*100.0; // 给权重
+        residual[4] = r5*100.0; // 给权重
+
         /////////////////////////////////////////////////////////////////////////////////
         return true;
     } // operator ()
@@ -645,7 +670,7 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points,
     for(int i = 0 ; i < 5; i++)
     {
         CostFunctor *Cost_functor1 = new CostFunctor (tag1_points[i],tag1_points[4],tag2_points[4],real_points[i],K,1);
-        problem.AddResidualBlock( new AutoDiffCostFunction<CostFunctor,4,4,3,4,3> (Cost_functor1), nullptr,
+        problem.AddResidualBlock( new AutoDiffCostFunction<CostFunctor,5,4,3,4,3> (Cost_functor1), nullptr,
                                                          quaternion1.coeffs().data(),t1.data(),quaternion2.coeffs().data(),t2.data());
         problem.SetParameterization(quaternion1.coeffs().data(), quaternion_local_parameterization);
         problem.SetParameterization(quaternion2.coeffs().data(), quaternion_local_parameterization);
@@ -653,7 +678,7 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points,
     for(int i = 0 ; i < 5; i++)
     {
         CostFunctor *Cost_functor2 = new CostFunctor (tag2_points[i],tag1_points[4],tag2_points[4],real_points[i],K,2);
-        problem.AddResidualBlock( new AutoDiffCostFunction<CostFunctor,4,4,3,4,3> (Cost_functor2), nullptr,
+        problem.AddResidualBlock( new AutoDiffCostFunction<CostFunctor,5,4,3,4,3> (Cost_functor2), nullptr,
                                                          quaternion1.coeffs().data(),t1.data(),quaternion2.coeffs().data(),t2.data());
         problem.SetParameterization(quaternion1.coeffs().data(), quaternion_local_parameterization);
         problem.SetParameterization(quaternion2.coeffs().data(), quaternion_local_parameterization);
@@ -1075,6 +1100,11 @@ int main(int argc, char *argv[])
             poseOptimization(tag1_points,tag2_points,K,rotationMatrixTag1,tranVecTag1,rotationMatrixTag2,tranVecTag2);
             // poseOptimizationAll(tag1_points,tag2_points,K,rotationMatrixTag1,tranVecTag1,rotationMatrixTag2,tranVecTag2);
         }
+        //  优化后再次进行重投影
+
+        
+        
+        
 
         auto t8 = getTime();
         // std::cout << "[Time] estimate_tag_pose = " << t8-t7_<< "ms\n";
