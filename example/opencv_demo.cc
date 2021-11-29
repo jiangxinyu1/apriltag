@@ -108,10 +108,16 @@ public:
         Eigen::Matrix<double,3,1> tt (0,0,1);
         Eigen::Matrix<T,3,1> z1 = R1*tt;
         Eigen::Matrix<T,3,1> z2 = R2*tt;
+        Eigen::Matrix<double,3,1> ttx (1,0,0);
+        Eigen::Matrix<T,3,1> x1 = R1*ttx;
+        Eigen::Matrix<T,3,1> x2 = R2*ttx;
+        Eigen::Matrix<double,3,1> tty (0,1,0);
+        Eigen::Matrix<T,3,1> y1 = R1*tty;
+        Eigen::Matrix<T,3,1> y2 = R2*tty;
         // T r2 = ((z1.transpose()*z2).norm() /(z1.norm()*z2.norm())) -1.0 ;
-        r2[0] = (z1.cross(z2))(0,0);
-        r2[1] = (z1.cross(z2))(1,0);
-        r2[2] = (z1.cross(z2))(2,0);
+        r2[0] = (z1.cross(z2)).norm();
+        r2[1] = (y1.cross(y2)).norm();
+        r2[2] = (x1.cross(x2)).norm();
         /////////////////////////////////////////////////////////////////////////////////
 #if 0        
         // todo: 3  Camera系下，tag1 的每个点（角点与中心点）与 tag2 的中心点组成的向量与 tag2的pose垂直
@@ -178,28 +184,30 @@ public:
         T r5 , r6;
         r5 = ((t2-t1).transpose()*(t2-t1))(0,0)-(0.204*0.204);
         // // r5 = (t2-t1).norm()-0.204;
-        // Eigen::Matrix<T,1,1> e_y = (t2-t1).transpose()*Eigen::Vector3d(0,1,0);
+        Eigen::Matrix<T,1,1> e_y = (t1-t2).transpose()*Eigen::Vector3d(0,1,0);
         // Eigen::Matrix<T,1,1> e_x = (t2-t1).transpose()*Eigen::Vector3d(1,0,0);
-        // r5 = e_y;
+        r6 = e_y.transpose()*e_y;
         // // Eigen::Matrix<double,1,1> dis;
         // // dis << 0.205*0.205;
-        // double dis = 0.0205*0.025;
-        // r6 = dis - e_x.transpose()*e_x;
+        // double dis = 0.0204*0.0204;
+        // r6 = dis - (e_x.transpose()*e_x).norm();
 
 
         /////////////////////////////////////////////////////////////////////////////////
         // std::cout << "forward_error = " << forward_error[0] << "\n";
-        // std::cout << "r2 = " << r2<< "\n";
+        // std::cout << "r2 = " << r2[0]<< "\n";
         // std::cout << "r4 = " << r4 << "\n";
         // std::cout << "r5 = " << r5 << "\n";
+        // std::cout << "r6 = " << r6 << "\n";
+
         residual[0] = forward_error[0] ;// 重投影误差第一项
         residual[1] = forward_error[1] ; // 重投影误差第二项
-        residual[2] = r2[0]*100.0; // 给权重
-        residual[3] = r2[1]*100.0; // 给权重
-        residual[4] = r2[2]*100.0; // 给权重
-        residual[5] = r4*100.0; // 给权重
-        residual[6] = r5*100.0; // 给权重
-        // residual[7] = r6*1000.0; // 给权重
+        residual[2] = r2[0]*1000.0; // 给权重
+        residual[3] = r2[1]*1000.0; // 给权重
+        residual[4] = r2[2]*1000.0; // 给权重
+        residual[5] = r4*1000.0; // 给权重
+        residual[6] = r5*1000.0; // 给权重
+        residual[7] = r6*1000.0; // 给权重
 
         /////////////////////////////////////////////////////////////////////////////////
         return true;
@@ -690,7 +698,7 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points,
     for(int i = 0 ; i < 5; i++)
     {
         CostFunctor *Cost_functor1 = new CostFunctor (tag1_points[i],tag1_points[4],tag2_points[4],real_points[i],K,1);
-        problem.AddResidualBlock( new AutoDiffCostFunction<CostFunctor,7,4,3,4,3> (Cost_functor1), loss_function,
+        problem.AddResidualBlock( new AutoDiffCostFunction<CostFunctor,8,4,3,4,3> (Cost_functor1), loss_function,
                                                          quaternion1.coeffs().data(),t1.data(),quaternion2.coeffs().data(),t2.data());
         problem.SetParameterization(quaternion1.coeffs().data(), quaternion_local_parameterization);
         problem.SetParameterization(quaternion2.coeffs().data(), quaternion_local_parameterization);
@@ -698,7 +706,7 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points,
     for(int i = 0 ; i < 5; i++)
     {
         CostFunctor *Cost_functor2 = new CostFunctor (tag2_points[i],tag1_points[4],tag2_points[4],real_points[i],K,2);
-        problem.AddResidualBlock( new AutoDiffCostFunction<CostFunctor,7,4,3,4,3> (Cost_functor2), loss_function,
+        problem.AddResidualBlock( new AutoDiffCostFunction<CostFunctor,8,4,3,4,3> (Cost_functor2), loss_function,
                                                          quaternion1.coeffs().data(),t1.data(),quaternion2.coeffs().data(),t2.data());
         problem.SetParameterization(quaternion1.coeffs().data(), quaternion_local_parameterization);
         problem.SetParameterization(quaternion2.coeffs().data(), quaternion_local_parameterization);
@@ -990,7 +998,7 @@ int main(int argc, char *argv[])
                     det->p[i][1]  = corners[i].y;
                 }
             };
-            // updateDetwithNewCorners();
+            updateDetwithNewCorners();
 
             line(frame, Point(det->p[0][0], det->p[0][1]),
                      Point(det->p[1][0], det->p[1][1]),
@@ -1122,16 +1130,22 @@ int main(int argc, char *argv[])
             {
                 // 计算Point i 
                 Eigen::Matrix<double,3,1> tz (0,0,1);
-                Eigen::Matrix<double,3,1> z1 = rotationMatrixTag1*tz;
                 Eigen::Matrix<double,3,1> ty (0,1,0);
+                Eigen::Matrix<double,3,1> z1 = rotationMatrixTag1*tz;
                 Eigen::Matrix<double,3,1> y1 = rotationMatrixTag1*ty;
                 Eigen::Matrix<double,3,1> z2 = rotationMatrixTag2*tz;
                 Eigen::Matrix<double,3,1> y2 = rotationMatrixTag2*ty;
                 // 求两个pose的中点
                 Eigen::Vector3d pointTagTest = (tranVecTag2+tranVecTag1)/2;
+                Eigen::Vector3d pointTagTest1 = pointTagTest - 0.25*z1 + 0.0483*y1;
+                Eigen::Vector3d pointTagTest2 = pointTagTest - 0.25*z2 + 0.0483*y2;
 
-                Eigen::Vector3d pointTagTest1 = pointTagTest - 0.25*z1 + 0.042*y1;
-                Eigen::Vector3d pointTagTest2 = pointTagTest - 0.25*z2 + 0.042*y2;
+                // 
+                // Eigen::Vector3d pointTagTest(0.102,0.048316,-0.25);
+                // Eigen::Vector3d pointTagTest1 = (rotationMatrixTag2*pointTagTest+tranVecTag2);
+                // Eigen::Vector3d pointTagTest_(-0.102,0.048316,-0.25);
+                // Eigen::Vector3d pointTagTest2 = (rotationMatrixTag1*pointTagTest_+tranVecTag1);
+
 
                Eigen::Vector3d point_uv = K*pointTagTest;
                 point_uv[0] = point_uv[0]/point_uv[2];
@@ -1180,7 +1194,7 @@ int main(int argc, char *argv[])
             }
         };
 
-        checkTagPose(false);
+        // checkTagPose(false);
 
         // TODO: R1 t1 R2 t2
         if ( id3ready && id6ready )
