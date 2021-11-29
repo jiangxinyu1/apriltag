@@ -124,12 +124,12 @@ public:
             curPoint[2] =tmp[2];
             curPoint[0] = curPoint[2]*(tag_point_[0] - KMat_(0,2))/KMat_(0,0);
             curPoint[1] = curPoint[2]*(tag_point_[1] - KMat_(1,2))/KMat_(1,1);
-            curPoint = R1.inverse()*(curPoint-t1);
+            curPoint = R1.transpose()*(curPoint-t1);
             // 
             targetCenterPoint[2] = t2[2];
             targetCenterPoint[0] = targetCenterPoint[2]*(tag_center_2_point_[0] - KMat_(0,2))/KMat_(0,0);
             targetCenterPoint[1] = targetCenterPoint[2]*(tag_center_2_point_[1] - KMat_(1,2))/KMat_(1,1);
-            targetCenterPoint = R2.inverse()*(targetCenterPoint-t2);
+            targetCenterPoint = R1.transpose()*(targetCenterPoint-t1);
             // 
             vec_corner_center = curPoint - targetCenterPoint;
             r3 = (vec_corner_center.transpose()*z2).norm();
@@ -141,21 +141,23 @@ public:
             curPoint[2] =tmp[2];
             curPoint[0] = curPoint[2]*(tag_point_[0] - KMat_(0,2))/KMat_(0,0);
             curPoint[1] = curPoint[2]*(tag_point_[1] - KMat_(1,2))/KMat_(1,1);
-            curPoint = R2.inverse()*(curPoint-t2);
+            curPoint = R2.transpose()*(curPoint-t2);
             // 
             targetCenterPoint[2] = t1[2];
             targetCenterPoint[0] = targetCenterPoint[2]*(tag_center_1_point_[0] - KMat_(0,2))/KMat_(0,0);
             targetCenterPoint[1] = targetCenterPoint[2]*(tag_center_1_point_[1] - KMat_(1,2))/KMat_(1,1);
-            targetCenterPoint = R1.inverse()*(targetCenterPoint-t1);
-            // 
+            targetCenterPoint = R2.transpose()*(targetCenterPoint-t2);
             vec_corner_center = curPoint - targetCenterPoint;
             r3 = (vec_corner_center.transpose()*z1).norm();
         }
         /////////////////////////////////////////////////////////////////////////////////
+        // std::cout << "forward_error = " << forward_error[0] << "\n";
+        // std::cout << "r2 = " << r2<< "\n";
+        // std::cout << "r3 = " << r3 << "\n";
         residual[0] = forward_error[0] ;// 重投影误差第一项
         residual[1] = forward_error[1] ; // 重投影误差第二项
-        residual[2] = r2*100.0; // 给权重
-        residual[3] = r3*100.0; // 给权重
+        residual[2] = r2*1000.0; // 给权重
+        residual[3] = r3*1000.0; // 给权重
         /////////////////////////////////////////////////////////////////////////////////
         return true;
     } // operator ()
@@ -584,19 +586,8 @@ void poseOptimizationAll(const std::vector<Eigen::Vector3d>& tag1_points,
                                              Eigen::Matrix3d & R1, Eigen::Vector3d & t1,
                                              Eigen::Matrix3d & R2, Eigen::Vector3d & t2 )
 {
-    // 
-    std::vector<Eigen::Vector3d> real_points; 
-    real_points.resize(5);
-    Eigen::Vector3d tagPoint0(-0.03,0.03,0.0);
-    Eigen::Vector3d tagPoint1(0.03,0.03,0.0);
-    Eigen::Vector3d tagPoint2(0.03,-0.03,0.0);
-    Eigen::Vector3d tagPoint3(-0.03,-0.03,0.0);
-    Eigen::Vector3d tagCenter(0.0,0.0,0.0);
-    real_points[0]= tagPoint0;
-    real_points[1]= tagPoint1;
-    real_points[2]= tagPoint2;
-    real_points[3]= tagPoint3;
-    real_points[4]= tagCenter;
+    const std::vector<Eigen::Vector3d> real_points{ Eigen::Vector3d (-0.03,0.03,0.0), Eigen::Vector3d (0.03,0.03,0.0), Eigen::Vector3d (0.03,-0.03,0.0),
+                                                                                        Eigen::Vector3d (-0.03,-0.03,0.0), Eigen::Vector3d (0.0,0.0,0.0)};
 
     // 旋转矩阵转成旋转向量
     Eigen::AngleAxisd rotation_vec1;
@@ -640,6 +631,8 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points,
 {
     const std::vector<Eigen::Vector3d> real_points{ Eigen::Vector3d (-0.03,0.03,0.0), Eigen::Vector3d (0.03,0.03,0.0), Eigen::Vector3d (0.03,-0.03,0.0),
                                                                                         Eigen::Vector3d (-0.03,-0.03,0.0), Eigen::Vector3d (0.0,0.0,0.0)};
+    std::cout << "[Before] t1  = \n" << t1[0] << "," <<t1[1] << "," << t1[2]<< std::endl;
+    std::cout << "[Before] t2  = \n" << t2[0] << "," <<t2[1] << "," << t2[2]<< std::endl;                                                                              
 
     // 旋转矩阵转成四元数
     Eigen::Quaterniond quaternion1(R1);
@@ -682,6 +675,8 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points,
     printf ("[AFTER]-----------------------------------The angle diff between id-3 and id-6 = %f \n",theta * 180/3.14159);
     std::cout << "R1.transpose()*R1 = \n" << (R1.transpose()*R1) << std::endl;
     std::cout << "R2.transpose()*R2= \n" << (R2.transpose()*R2)<< std::endl;
+    std::cout << "[AFTER] t1  = \n" << t1[0] << "," <<t1[1] << "," << t1[2]<< std::endl;
+    std::cout << "[AFTER] t2  = \n" << t2[0] << "," <<t2[1] << "," << t2[2]<< std::endl;
     // std::cout << summary.FullReport() << '\n';
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -806,7 +801,6 @@ int main(int argc, char *argv[])
         // std::cout << "[Time] apriltag_detector_detect = " << t6-t5 << "ms\n";
         auto t7_ = getTime();
 
-
         Eigen::Vector3d rotation_z_3;
         Eigen::Vector3d rotation_z_6;
         bool id3ready = false , id6ready =false;
@@ -822,7 +816,7 @@ int main(int argc, char *argv[])
         Eigen::Matrix3d rotationMatrixTag2;
         Eigen::Vector3d tranVecTag1;
         Eigen::Vector3d tranVecTag2;
-  
+
         /*  
         *   遍历每个检测结果
         */
@@ -951,7 +945,6 @@ int main(int argc, char *argv[])
             };
             updateDetwithNewCorners();
 
-#if 1
             line(frame, Point(det->p[0][0], det->p[0][1]),
                      Point(det->p[1][0], det->p[1][1]),
                      Scalar(0, 0xff, 0), 2);
@@ -964,8 +957,6 @@ int main(int argc, char *argv[])
             line(frame, Point(det->p[2][0], det->p[2][1]),
                      Point(det->p[3][0], det->p[3][1]),
                      Scalar(0xff, 0, 0), 2);
-#endif
-
 
             stringstream ss;
             ss << det->id;
