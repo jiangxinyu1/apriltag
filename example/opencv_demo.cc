@@ -853,6 +853,7 @@ int main(int argc, char *argv[])
         cv::Mat image_with_init_corners = frame1.clone();
         cv::Mat image_with_gftt_corners = frame1.clone();
         cv::Mat image_with_subpixel_corners = frame1.clone();
+        cv::Mat image_raw = rgbImage.clone();
         cv::Mat image_check = frame1.clone();
         std::vector<Eigen::Vector3d> tag1_points; // 用于存储Tag1的图像上角点及中心点
         std::vector<Eigen::Vector3d> tag2_points; // 用于存储Tag2的图像上角点及中心点
@@ -1122,7 +1123,6 @@ int main(int argc, char *argv[])
                 Eigen::Vector3d pointTagTest_(-0.1029,0.0483,-0.25);
                 Eigen::Vector3d pointTagTest1 = (rotationMatrixTag2*pointTagTest+tranVecTag2);
                 Eigen::Vector3d pointTagTest2 = (rotationMatrixTag1*pointTagTest_+tranVecTag1);
-
                 Eigen::Vector3d point_uv_1 = K*pointTagTest1;
                 Eigen::Vector3d point_uv_2 = K*pointTagTest2;
                 
@@ -1135,8 +1135,6 @@ int main(int argc, char *argv[])
                     image_check.at<uint8_t>(std::round(point_uv_1[1]/point_uv_1[2]),std::round(point_uv_1[0]/point_uv_1[2])) = 255;
                     cv::circle(image_check, cv::Point(point_uv_1[0]/point_uv_1[2],point_uv_1[1]/point_uv_1[2]), 5, cv::Scalar(0, 255, 0), 2, 8, 0);
                 }
-
-                
                 
                 if ( optimized )
                 {
@@ -1164,6 +1162,60 @@ int main(int argc, char *argv[])
                 }
             }
         };
+        auto checkOnRawImage = [&]()
+        {
+            if ( id3ready && id6ready )
+            {
+                // 畸变参数
+                double k1 =-0.338011, k2 = 0.130450, p1 = 0.000287, p2 =0.000001 ,k3=  -0.024906;
+                // 内参 
+                double fx = 934.166126, fy = 935.122766, cx = 960.504061-300, cy =  562.707915-200;
+                const std::vector<Eigen::Vector3d> real_points_{ Eigen::Vector3d (-0.03,0.03,0.0), Eigen::Vector3d (0.03,0.03,0.0), Eigen::Vector3d (0.03,-0.03,0.0),
+                                                                                                    Eigen::Vector3d (-0.03,-0.03,0.0), Eigen::Vector3d (0.0,0.0,0.0)};
+                for (auto p : real_points_)
+                {
+                    Eigen::Vector3d p_uv = K*(rotationMatrixTag1*p+tranVecTag1);
+                    p_uv[0] = p_uv[0]/p_uv[2];
+                    p_uv[1] = p_uv[1]/p_uv[2];
+                    // 由畸变模型计算发生畸变后的像素坐标
+                    auto x1 = (p_uv[0] - cx)/fx;
+                    auto y1 = (p_uv[1] - cy)/fy;
+                    double r2;
+                    //  2 由畸变参数计算每个点发生畸变后在归一化平面的对应坐标 (x_distorted,y_distorted)
+                    r2 = pow(x1,2)+pow(y1,2);
+                    auto x_distorted  = x1*(1+k1*r2+k2*pow(r2,2)+k3*pow(r2,3))+2*p1*x1*y1+p2*(r2+2*x1*x1);
+                    auto y_distorted = y1*(1+k1*r2+k2*pow(r2,2)+k3*pow(r2,3))+p1*(r2+2*y1*y1)+2*p2*x1*y1;
+                    //  3 将畸变后的点由内参矩阵投影到像素平面,得到该点在输入的带有畸变图像上的位置 
+                    auto u_distorted = fx*x_distorted+cx;
+                    auto v_distorted = fy*y_distorted+cy;
+                    image_raw.at<uint8_t>(std::round(v_distorted),std::round(u_distorted)) = 255;
+                    cv::circle(image_raw, cv::Point(u_distorted,v_distorted), 5, cv::Scalar(0, 255, 0), 2, 8, 0);
+                }
+                for (auto p : real_points_)
+                {
+                    Eigen::Vector3d p_uv = K*(rotationMatrixTag2*p+tranVecTag2);
+                    p_uv[0] = p_uv[0]/p_uv[2];
+                    p_uv[1] = p_uv[1]/p_uv[2];
+                    // 由畸变模型计算发生畸变后的像素坐标
+                    auto x1 = (p_uv[0] - cx)/fx;
+                    auto y1 = (p_uv[1] - cy)/fy;
+                    double r2;
+                    //  2 由畸变参数计算每个点发生畸变后在归一化平面的对应坐标 (x_distorted,y_distorted)
+                    r2 = pow(x1,2)+pow(y1,2);
+                    auto x_distorted  = x1*(1+k1*r2+k2*pow(r2,2)+k3*pow(r2,3))+2*p1*x1*y1+p2*(r2+2*x1*x1);
+                    auto y_distorted = y1*(1+k1*r2+k2*pow(r2,2)+k3*pow(r2,3))+p1*(r2+2*y1*y1)+2*p2*x1*y1;
+                    //  3 将畸变后的点由内参矩阵投影到像素平面,得到该点在输入的带有畸变图像上的位置 
+                    auto u_distorted = fx*x_distorted+cx;
+                    auto v_distorted = fy*y_distorted+cy;
+                    image_raw.at<uint8_t>(std::round(v_distorted),std::round(u_distorted)) = 255;
+                    cv::circle(image_raw, cv::Point(u_distorted,v_distorted), 5, cv::Scalar(0, 255, 0), 2, 8, 0);
+                }
+            }
+        };
+
+        
+
+
 
         // checkTagPose(false);
 
@@ -1171,10 +1223,10 @@ int main(int argc, char *argv[])
         if ( id3ready && id6ready )
         {                
             poseOptimization(tag1_points,tag2_points,K,rotationMatrixTag1,tranVecTag1,rotationMatrixTag2,tranVecTag2);
-            // poseOptimizationAll(tag1_points,tag2_points,K,rotationMatrixTag1,tranVecTag1,rotationMatrixTag2,tranVecTag2);
         }
         
         checkTagPose(true);
+        checkOnRawImage();
 
         auto t8 = getTime();
         // std::cout << "[Time] estimate_tag_pose = " << t8-t7_<< "ms\n";
@@ -1198,6 +1250,7 @@ int main(int argc, char *argv[])
         imageVec.push_back(image_with_gftt_corners);
         imageVec.push_back(image_with_subpixel_corners);
         imageVec.push_back(image_check);
+        imageVec.push_back(image_raw);
         cv::vconcat(imageVec,combineImage);
         std::string out_path4 = "/data/rgb/combineImage_"+std::to_string(imageIndex)+".jpg";
         SaveImage(combineImage,out_path4);
