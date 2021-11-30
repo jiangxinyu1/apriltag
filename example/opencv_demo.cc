@@ -97,11 +97,8 @@ public:
             tmp1= KMat_*(R2* real_point_ + t2);
         }
         T forward_error[2];
-        tmp1(0,0) = tmp1(0,0) / tmp1(2,0);
-        tmp1(1,0) = tmp1(1,0) / tmp1(2,0);
-        tmp1(2,0) = tmp1(2,0) / tmp1(2,0);
-        forward_error[0] = tag_point_[0]  - tmp1(0,0);
-        forward_error[1]= tag_point_[1] - tmp1(1,0);
+        forward_error[0] = tag_point_[0]  - tmp1(0,0)/tmp1(2,0);
+        forward_error[1]= tag_point_[1] - tmp1(1,0)/tmp1(2,0);
         /////////////////////////////////////////////////////////////////////////////////
         // todo : 2 两个z轴的的夹角应为0
         T r2[3];
@@ -182,16 +179,9 @@ public:
         }
         /////////////////////////////////////////////////////////////////////////////////
         T r5 , r6;
-        r5 = ((t2-t1).transpose()*(t2-t1))(0,0)-(0.204*0.204);
-        // // r5 = (t2-t1).norm()-0.204;
         Eigen::Matrix<T,1,1> e_y = (t1-t2).transpose()*Eigen::Vector3d(0,1,0);
-        // Eigen::Matrix<T,1,1> e_x = (t2-t1).transpose()*Eigen::Vector3d(1,0,0);
+        r5 = ((t2-t1).transpose()*(t2-t1))(0,0)-(0.204*0.204);
         r6 = e_y.transpose()*e_y;
-        // // Eigen::Matrix<double,1,1> dis;
-        // // dis << 0.205*0.205;
-        // double dis = 0.0204*0.0204;
-        // r6 = dis - (e_x.transpose()*e_x).norm();
-
 
         /////////////////////////////////////////////////////////////////////////////////
         // std::cout << "forward_error = " << forward_error[0] << "\n";
@@ -714,7 +704,7 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points,
     // todo : Solve
     ceres::Solver::Options solver_options;//实例化求解器对象    
     solver_options.linear_solver_type=ceres::DENSE_QR;
-    solver_options.minimizer_progress_to_stdout= true;
+    solver_options.minimizer_progress_to_stdout= false;
     //实例化求解对象
     ceres::Solver::Summary summary;
     ceres::Solve(solver_options,&problem,&summary);
@@ -978,7 +968,7 @@ int main(int argc, char *argv[])
             Eigen::Matrix3d newH;
             homography_compute3(corr_arr,newH);
 
-            std::cout << "New Homography Matrix: \n"<< newH << "\n";
+            // std::cout << "New Homography Matrix: \n"<< newH << "\n";
             ///////////////////////////////////////////////////////////////////////////
             // 使用新的角点更新det的 H 及 corners
             auto updateDetwithNewCorners = [&] ()
@@ -1124,72 +1114,53 @@ int main(int argc, char *argv[])
 
 
         //  TODO: 对pose进行的检验
-        auto checkTagPose = [&]( bool optimized)
+        auto checkTagPose = [&]( bool optimized )
         {
             if ( id3ready && id6ready )
             {
-                // 计算Point i 
-                Eigen::Matrix<double,3,1> tz (0,0,1);
-                Eigen::Matrix<double,3,1> ty (0,1,0);
-                Eigen::Matrix<double,3,1> z1 = rotationMatrixTag1*tz;
-                Eigen::Matrix<double,3,1> y1 = rotationMatrixTag1*ty;
-                Eigen::Matrix<double,3,1> z2 = rotationMatrixTag2*tz;
-                Eigen::Matrix<double,3,1> y2 = rotationMatrixTag2*ty;
-                // 求两个pose的中点
-                Eigen::Vector3d pointTagTest = (tranVecTag2+tranVecTag1)/2;
-                Eigen::Vector3d pointTagTest1 = pointTagTest - 0.25*z1 + 0.0483*y1;
-                Eigen::Vector3d pointTagTest2 = pointTagTest - 0.25*z2 + 0.0483*y2;
-
-                // 
-                // Eigen::Vector3d pointTagTest(0.102,0.048316,-0.25);
-                // Eigen::Vector3d pointTagTest1 = (rotationMatrixTag2*pointTagTest+tranVecTag2);
-                // Eigen::Vector3d pointTagTest_(-0.102,0.048316,-0.25);
-                // Eigen::Vector3d pointTagTest2 = (rotationMatrixTag1*pointTagTest_+tranVecTag1);
-
-
-               Eigen::Vector3d point_uv = K*pointTagTest;
-                point_uv[0] = point_uv[0]/point_uv[2];
-                point_uv[1] = point_uv[1]/point_uv[2];
-                image_check.at<uint8_t>(std::round(point_uv[1]),std::round(point_uv[0])) = 255;
-                cv::circle(image_check, cv::Point(point_uv[0],point_uv[1]), 5, cv::Scalar(0, 255, 0), 2, 8, 0);
+                Eigen::Vector3d pointTagTest(0.1029,0.0483,-0.25);
+                Eigen::Vector3d pointTagTest_(-0.1029,0.0483,-0.25);
+                Eigen::Vector3d pointTagTest1 = (rotationMatrixTag2*pointTagTest+tranVecTag2);
+                Eigen::Vector3d pointTagTest2 = (rotationMatrixTag1*pointTagTest_+tranVecTag1);
 
                 Eigen::Vector3d point_uv_1 = K*pointTagTest1;
-                point_uv_1[0] = point_uv_1[0]/point_uv_1[2];
-                point_uv_1[1] = point_uv_1[1]/point_uv_1[2];
-                image_check.at<uint8_t>(std::round(point_uv_1[1]),std::round(point_uv_1[0])) = 255;
-                if ( optimized )
-                {
-                     Rect rect(int(point_uv_1[0]-5), int(point_uv_1[1]-5), 10, 10);//左上坐标（x,y）和矩形的长(x)宽(y)
-                    cv::rectangle(image_check, rect, Scalar(0,255, 0),1, LINE_8,0);
-                }else{
-                    cv::circle(image_check, cv::Point(point_uv_1[0],point_uv_1[1]), 5, cv::Scalar(0, 255, 0), 2, 8, 0);
-                }
                 Eigen::Vector3d point_uv_2 = K*pointTagTest2;
-                point_uv_2[0] = point_uv_2[0]/point_uv_2[2];
-                point_uv_2[1] = point_uv_2[1]/point_uv_2[2];
-                image_check.at<uint8_t>(std::round(point_uv_2[1]),std::round(point_uv_2[0])) = 255;
+                
                 if ( optimized )
                 {
-                     Rect rect(int(point_uv_2[0]-5), int(point_uv_2[1]-5), 10, 10);//左上坐标（x,y）和矩形的长(x)宽(y)
-                    cv::rectangle(image_check, rect, Scalar(0, 255, 0),1, LINE_8,0);
+                    image_check.at<uint8_t>(std::round(point_uv_1[1]/point_uv_1[2]),std::round(point_uv_1[0]/point_uv_1[2])) = 255;
+                    Rect rect1(int(point_uv_1[0]/point_uv_1[2]-5), int(point_uv_1[1]/point_uv_1[2]-5), 10, 10);//左上坐标（x,y）和矩形的长(x)宽(y)
+                    cv::rectangle(image_check, rect1, Scalar(0,255, 0),1, LINE_8,0);
                 }else{
-                    cv::circle(image_check, cv::Point(point_uv_2[0],point_uv_2[1]), 5, cv::Scalar(0, 255, 0), 2, 8, 0);
+                    image_check.at<uint8_t>(std::round(point_uv_1[1]/point_uv_1[2]),std::round(point_uv_1[0]/point_uv_1[2])) = 255;
+                    cv::circle(image_check, cv::Point(point_uv_1[0]/point_uv_1[2],point_uv_1[1]/point_uv_1[2]), 5, cv::Scalar(0, 255, 0), 2, 8, 0);
                 }
 
-                const std::vector<Eigen::Vector3d> real_points{ Eigen::Vector3d (-0.03,0.03,0.0), Eigen::Vector3d (0.03,0.03,0.0), Eigen::Vector3d (0.03,-0.03,0.0),
-                                                                                        Eigen::Vector3d (-0.03,-0.03,0.0), Eigen::Vector3d (0.0,0.0,0.0)};
-                for (auto p : real_points)
+                
+                
+                if ( optimized )
                 {
-                    Eigen::Vector3d point_uv = K*(rotationMatrixTag1*p+tranVecTag1);
-                    point_uv[0] = point_uv[0]/point_uv[2];
-                    point_uv[1] = point_uv[1]/point_uv[2];
-                    image_check.at<uint8_t>(std::round(point_uv[1]),std::round(point_uv[0])) = 255;
-                    cv::circle(image_check, cv::Point(point_uv[0],point_uv[1]), 5, cv::Scalar(0, 255, 0), 2, 8, 0);
-                    Eigen::Vector3d point_uv_2 = K*(rotationMatrixTag2*p+tranVecTag2);
-                    point_uv_2[0] = point_uv_2[0]/point_uv_2[2];
-                    point_uv_2[1] = point_uv_2[1]/point_uv_2[2];
-                    image_check.at<uint8_t>(std::round(point_uv_2[1]),std::round(point_uv_2[0])) = 255;
-                    cv::circle(image_check, cv::Point(point_uv_2[0],point_uv_2[1]), 5, cv::Scalar(0, 255, 0), 2, 8, 0);
+                    image_check.at<uint8_t>(std::round(point_uv_2[1]/point_uv_2[2]),std::round(point_uv_2[0]/point_uv_2[2])) = 255;
+                     Rect rect(int(point_uv_2[0]/point_uv_2[2]-5), int(point_uv_2[1]/point_uv_2[2]-5), 10, 10);//左上坐标（x,y）和矩形的长(x)宽(y)
+                    cv::rectangle(image_check, rect, Scalar(0, 255, 0),1, LINE_8,0);
+                }else{
+                    image_check.at<uint8_t>(std::round(point_uv_2[1]/point_uv_2[2]),std::round(point_uv_2[0]/point_uv_2[2])) = 255;
+                    cv::circle(image_check, cv::Point(point_uv_2[0]/point_uv_2[2],point_uv_2[1]/point_uv_2[2]), 5, cv::Scalar(0, 255, 0), 2, 8, 0);
+                }
+
+                const std::vector<Eigen::Vector3d> real_points_{ Eigen::Vector3d (-0.03,0.03,0.0), Eigen::Vector3d (0.03,0.03,0.0), Eigen::Vector3d (0.03,-0.03,0.0),
+                                                                                                    Eigen::Vector3d (-0.03,-0.03,0.0), Eigen::Vector3d (0.0,0.0,0.0),
+                                                                                                    Eigen::Vector3d (-0.02,0.02,0.0), Eigen::Vector3d (0.02,0.02,0.0), Eigen::Vector3d (0.02,-0.02,0.0),
+                                                                                                    Eigen::Vector3d (-0.02,-0.02,0.0),Eigen::Vector3d (-0.01,0.01,0.0), Eigen::Vector3d (0.01,0.01,0.0), 
+                                                                                                    Eigen::Vector3d (0.01,-0.01,0.0), Eigen::Vector3d (-0.01,-0.01,0.0)};
+                for (auto p : real_points_)
+                {
+                    Eigen::Vector3d point_uv_r = K*(rotationMatrixTag1*p+tranVecTag1);
+                    image_check.at<uint8_t>(std::round(point_uv_r[1]/point_uv_r[2]),std::round(point_uv_r[0]/point_uv_r[2])) = 255;
+                    cv::circle(image_check, cv::Point(point_uv_r[0]/point_uv_r[2],point_uv_r[1]/point_uv_r[2]), 5, cv::Scalar(0, 255, 0), 2, 8, 0);
+                    Eigen::Vector3d point_uv_r2 = K*(rotationMatrixTag2*p+tranVecTag2);
+                    image_check.at<uint8_t>(std::round(point_uv_r2[1]/point_uv_r2[2]),std::round(point_uv_r2[0]/point_uv_r2[2])) = 255;
+                    cv::circle(image_check, cv::Point(point_uv_r2[0]/point_uv_r2[2],point_uv_r2[1]/point_uv_r2[2]), 5, cv::Scalar(0, 255, 0), 2, 8, 0);
                 }
             }
         };
