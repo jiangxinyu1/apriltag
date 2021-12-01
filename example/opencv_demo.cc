@@ -565,30 +565,86 @@ void  imagePreprocess( cv::Mat &rgbImageRaw , cv::Mat & frame, std::vector<std::
         //  2 裁剪
         auto my_select = cv::Rect(300,200,1320,680);
         cv::Mat rgbImage = rgbImageRaw(my_select);
-
         // 3 图像降采样
         int rows = rgbImage.rows, cols = rgbImage.cols;
         cv::Mat newFrame = rgbImage;
         // cv::pyrDown(rgbImage,newFrame,cv::Size(cols/2,rows/2));
-        // std::cout << newFrame.rows << "." << newFrame.cols<< "\n";
-        auto t3 = getTime();
-
-        // TODO : 4 对RGB图像去畸变
+        // 4 对RGB图像去畸变
         cv::Mat frame1 = cv::Mat(newFrame.rows, newFrame.cols, CV_8UC1);   // 去畸变以后的图
         myImageDistorted(newFrame,frame1,distortLookupTable);
-        //  TODO : 5 直方图均衡化
-        frame = frame1.clone();
+        //  5 直方图均衡化
         // cv::equalizeHist(frame1,frame);
-        // TODO : 6   RGB转成灰度图  
+        // 6   RGB转成灰度图  
         // cvtColor(frame, gray, COLOR_BGR2GRAY);
-        // gray = frame;
+        frame = frame1.clone();
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void refinementCornerWithGFTT(const cv::Mat &frame, const std::vector<cv::Point2f> &corners ,std::vector<cv::Point2f> &corners_after_gftt)
+{
+     //  计算corners的周围7*7的点的最小特征值
+    const int halfWindowSize = 7;
+    const int halfSmallWindowSize = 2;
+    std::vector<cv::Mat> cornersMinValuesMatVec;
+    // 计算每个角点周围11*11区域的响应（最小特征值）
+    for ( auto  i = 0 ;  i < corners.size(); i ++)
+    {
+        auto currentSelect = cv::Rect( std::round(corners[i].x-halfWindowSize),std::round(corners[i].y-halfWindowSize),2*halfWindowSize+1,2*halfWindowSize+1);
+        cv::Mat  tmpMat = frame(currentSelect);
+        cv::Mat cornerMinValueMat;
+        // cv::GaussianBlur(tmpMat,tmpMat,cv::Size(3,3),0);
+        cv::cornerMinEigenVal(tmpMat,cornerMinValueMat,3,3,4); // sobel 算子的size 3*3
+        cornersMinValuesMatVec.push_back(cornerMinValueMat);
+    }
+    // 遍历每个角点周围的11*11响应矩阵，在5*5范围内找最大的最小特征值（像素坐标）
+    int count = 0;
+    
+    corners_after_gftt.resize(4);
+    corners_after_gftt = corners;
+    for ( auto mat : cornersMinValuesMatVec)
+    {
+        auto currentSelect = cv::Rect(halfWindowSize-halfSmallWindowSize,halfWindowSize-halfSmallWindowSize,2*halfSmallWindowSize+1,2*halfSmallWindowSize+1);
+        cv::Mat  tmpMat = mat(currentSelect);
+        double maxValue;    // 最大值，最小值
+        cv::Point  maxIdx;    // 最小值坐标，最大值坐标     
+        cv::minMaxLoc(tmpMat, nullptr, &maxValue, nullptr, &maxIdx);
+        // std::cout << "corner_" << count << "\n"<< tmpMat << "\n"; 
+        // std::cout << "最大值：" << maxValue  << ", 最大值位置：" << maxIdx << std::endl;
+        // 计算
+        corners_after_gftt[count].y = corners[count].y + (maxIdx.y - halfSmallWindowSize);
+        corners_after_gftt[count].x = corners[count].x + (maxIdx.x - halfSmallWindowSize);
+        count++;
+    }
+}
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void refinementCornerWithSubPixel(const cv::Mat &frame, const std::vector<cv::Point2f> &corners_ ,std::vector<cv::Point2f> &corners_after_subpixel_)
+{
+    corners_after_subpixel_ = corners_;
+    cv::cornerSubPix(frame, corners_after_subpixel_, cv::Size(3, 3), cv::Size(-1, -1), cv::TermCriteria(2+1, 1000000, 0.001));
+    // cv::cornerSubPix(frame, corners, cv::Size(11, 11), cv::Size(-1, -1), cv::TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
+}
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void computeHomographyWithCorners( const std::vector<cv::Point2f> &corners_final , Eigen::Matrix3d &newH)
+{
+    //  计算新的单应矩阵
+    double corr_arr[4][4];
+    for (int i = 0; i < 4; i++) 
+    {
+        corr_arr[i][0] = (i==0 || i==3) ? -1 : 1;
+        corr_arr[i][1] = (i==0 || i==1) ? -1 : 1;
+    }
+    corr_arr[0][2] = corners_final[3].x;
+    corr_arr[0][3] = corners_final[3].y;
+    corr_arr[1][2] = corners_final[2].x;
+    corr_arr[1][3] = corners_final[2].y;
+    corr_arr[2][2] = corners_final[1].x;
+    corr_arr[2][3] = corners_final[1].y;
+    corr_arr[3][2] = corners_final[0].x;
+    corr_arr[3][3] = corners_final[0].y;
+    homography_compute3(corr_arr,newH);
+}
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char *argv[])
@@ -639,18 +695,16 @@ int main(int argc, char *argv[])
     td->debug = getopt_get_bool(getopt, "debug");
     td->refine_edges = getopt_get_bool(getopt, "refine-edges");
 
+    // 
     std::vector<std::vector<distortion_uv_4>> distortLookupTable;
     preBuildDistortedLookupTable(distortLookupTable,(1920-600),(1080-400));
-
+    // 
     Mat frame,rgbImageRaw;
     const int testNumber = 10;
-
     for ( int imageIndex = 1 ; imageIndex < testNumber; imageIndex++)
     {
         std::cout << "\n<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< NEW IMAGE <<<<<<<<<<<<<<<<<<< diatance = "<< imageIndex*10 <<"cm \n";
-
-        //  TODO： 1 循环读取YUV将其转成GRAY
-        auto t1 = getTime();
+        //  1 循环读取YUV将其转成GRAY
         std::string new_path = "/data/rgb/"+std::to_string(imageIndex)+".yuv";
 
         YUV4202GRAY_CV_SAVE(new_path,rgbImageRaw,1920,1080);
@@ -666,13 +720,9 @@ int main(int argc, char *argv[])
             .buf = frame.data
         };
 
-        // TODO : 7 检测tag，并计算H  
+        // 检测tag，并计算H  
         zarray_t *detections = apriltag_detector_detect(td, &im);
         
-        auto t6 = getTime();
-        // std::cout << "[Time] apriltag_detector_detect = " << t6-t5 << "ms\n";
-        auto t7_ = getTime();
-
         Eigen::Vector3d rotation_z_3;
         Eigen::Vector3d rotation_z_6;
         bool id3ready = false , id6ready =false;
@@ -690,10 +740,7 @@ int main(int argc, char *argv[])
         Eigen::Vector3d tranVecTag1;
         Eigen::Vector3d tranVecTag2;
         
-
-        /*  
-        *   遍历每个检测结果
-        */
+        //  遍历每个检测结果
         for (int i = 0; i < zarray_size(detections); i++) 
         {
             apriltag_detection_t *det;
@@ -706,11 +753,10 @@ int main(int argc, char *argv[])
 
             std::vector<cv::Point2f> corners;
             corners.resize(4);
-            ///////////////////////////////////////////////////////////////////////////
-            auto printDetectResult = [&]()
+            printf("\n<<<<<<<<<<<< TAG ID = %i, decision_margin = %f\n", det->id,det->decision_margin);
+
+            auto updateCorners = [&]()
             {
-                printf("\n<<<<<<<<<<<< TAG ID = %i, decision_margin = %f\n", det->id,det->decision_margin);
-                // print conner and center
                 printf("detection result : \n");
                 for (int i = 0 ; i < 4; i++)
                 {
@@ -719,86 +765,32 @@ int main(int argc, char *argv[])
                     // printf("detect conner %i =(%f , %f) \n",i,det->p[i][0],det->p[i][1]);
                 }
                 // printf("center = %f ,%f \n",det->c[0],det->c[1]);
-                // // print Homography Matrix
                 // printf("Homography Matrix :  \n %f,%f,%f \n %f,%f,%f\n  %f,%f,%f\n", det->H->data[0],det->H->data[1],det->H->data[2],det->H->data[3],
                 //             det->H->data[4],det->H->data[5],det->H->data[6],det->H->data[7],det->H->data[8]);
             };
-            printDetectResult();
-            ///////////////////////////////////////////////////////////////////////////
+            updateCorners();
 
-
-            // todo: 计算corners的周围7*7的点的最小特征值
-            const int halfWindowSize = 7;
-            const int halfSmallWindowSize = 2;
-            std::vector<cv::Mat> cornersMinValuesMatVec;
-            // 计算每个角点周围11*11区域的响应（最小特征值）
-            for ( auto  i = 0 ;  i < corners.size(); i ++)
-            {
-                auto currentSelect = cv::Rect( std::round(corners[i].x-halfWindowSize),std::round(corners[i].y-halfWindowSize),2*halfWindowSize+1,2*halfWindowSize+1);
-                cv::Mat  tmpMat = frame(currentSelect);
-                cv::Mat cornerMinValueMat;
-                // cv::GaussianBlur(tmpMat,tmpMat,cv::Size(3,3),0);
-                cv::cornerMinEigenVal(tmpMat,cornerMinValueMat,3,3,4); // sobel 算子的size 3*3
-                cornersMinValuesMatVec.push_back(cornerMinValueMat);
-            }
-            // 遍历每个角点周围的11*11响应矩阵，在5*5范围内找最大的最小特征值（像素坐标）
-            int count = 0;
+            //  cal GFTT
             std::vector<cv::Point2f> corners_after_gftt;
-            corners_after_gftt.resize(4);
-            corners_after_gftt = corners;
-            for ( auto mat : cornersMinValuesMatVec)
-            {
-                auto currentSelect = cv::Rect(halfWindowSize-halfSmallWindowSize,halfWindowSize-halfSmallWindowSize,2*halfSmallWindowSize+1,2*halfSmallWindowSize+1);
-                cv::Mat  tmpMat = mat(currentSelect);
-                double maxValue;    // 最大值，最小值
-                cv::Point  maxIdx;    // 最小值坐标，最大值坐标     
-                cv::minMaxLoc(tmpMat, nullptr, &maxValue, nullptr, &maxIdx);
-                // std::cout << "corner_" << count << "\n"<< tmpMat << "\n"; 
-                // std::cout << "最大值：" << maxValue  << ", 最大值位置：" << maxIdx << std::endl;
-                // 计算
-                corners_after_gftt[count].y = corners[count].y + (maxIdx.y - halfSmallWindowSize);
-                corners_after_gftt[count].x = corners[count].x + (maxIdx.x - halfSmallWindowSize);
-                count++;
-            }
+            refinementCornerWithGFTT(frame,corners,corners_after_gftt);
 
-            // todo:  do cornerSubPix
+            //  do cornerSubPix
+            std::vector<cv::Point2f> corners_after_subpixel;
+            refinementCornerWithSubPixel(frame,corners_after_gftt,corners_after_subpixel);
+
+            //  确定最终的角点
             std::vector<cv::Point2f> corners_final;
-            corners_final = corners_after_gftt;
-            // cv::cornerSubPix(frame, corners, cv::Size(11, 11), cv::Size(-1, -1), cv::TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
-            cv::cornerSubPix(frame, corners_after_gftt, cv::Size(3, 3), cv::Size(-1, -1), cv::TermCriteria(2+1, 1000000, 0.001));
-
-
-            ///////////////////////////////////////////////////////////////////////////
-            // todo : 确定最终的角点
-
+            corners_final = corners_after_subpixel;
             for(int i = 0; i < corners_final.size(); i++)
             {
-                // frame.at<uint8_t>(std::round(corners_final[i].y),std::round(corners_final[i].x)) = 255;
-                // cv::circle(frame, corners_final[i], 5, cv::Scalar(0, 255, 0), 2, 8, 0);
                 printf("corners_final %i = %f ,%f\n",i,corners_final[i].x,corners_final[i].y);
             }
-            ///////////////////////////////////////////////////////////////////////////
-            // TODO: 计算新的单应矩阵
-            double corr_arr[4][4];
-            for (int i = 0; i < 4; i++) 
-            {
-                corr_arr[i][0] = (i==0 || i==3) ? -1 : 1;
-                corr_arr[i][1] = (i==0 || i==1) ? -1 : 1;
-            }
-            corr_arr[0][2] = corners_final[3].x;
-            corr_arr[0][3] = corners_final[3].y;
-            corr_arr[1][2] = corners_final[2].x;
-            corr_arr[1][3] = corners_final[2].y;
-            corr_arr[2][2] = corners_final[1].x;
-            corr_arr[2][3] = corners_final[1].y;
-            corr_arr[3][2] = corners_final[0].x;
-            corr_arr[3][3] = corners_final[0].y;
 
+            // 计算新的单应 
             Eigen::Matrix3d newH;
-            homography_compute3(corr_arr,newH);
-
+            computeHomographyWithCorners(corners_final,newH);
             // std::cout << "New Homography Matrix: \n"<< newH << "\n";
-            ///////////////////////////////////////////////////////////////////////////
+
             // 使用新的角点更新det的 H 及 corners
             auto updateDetwithNewCorners = [&] ()
             {
@@ -813,11 +805,12 @@ int main(int argc, char *argv[])
                 det->H->data[8] = newH(2,2);
                 for (int i = 0; i < 4; i++) 
                 {
-                    det->p[i][0] = corners[i].x;
-                    det->p[i][1]  = corners[i].y;
+                    det->p[i][0] =  corners_final[i].x;
+                    det->p[i][1]  = corners_final[i].y;
                 }
             };
             updateDetwithNewCorners();
+
 
             line(frame, Point(det->p[0][0], det->p[0][1]),
                      Point(det->p[1][0], det->p[1][1]),
@@ -910,14 +903,8 @@ int main(int argc, char *argv[])
                 printf("c3 =  %f, %f ,%f\n",c3[0]/c3[2],c3[1]/c3[2],c3[2]/c3[2]);
                 printf("center =  %f, %f ,%f\n",c[0]/c[2],c[1]/c[2],c[2]/c[2]);
 
-                // frame.at<uint8_t>(std::round(c0[1]/c0[2]),std::round(c0[0]/c0[2])) = 255;
-                // frame.at<uint8_t>(std::round(c1[1]/c1[2]),std::round(c1[0]/c1[2])) = 255;
-                // frame.at<uint8_t>(std::round(c2[1]/c2[2]),std::round(c2[0]/c2[2])) = 255;
-                // frame.at<uint8_t>(std::round(c3[1]/c3[2]),std::round(c3[0]/c3[2])) = 255;
-                // frame.at<uint8_t>(std::round(c[1]/c[2]),std::round(c[0]/c[2])) = 255;
             };
             // reprojection();
-
             
             for(int corner_id = 0; corner_id < corners_after_gftt.size(); corner_id++)
             {
