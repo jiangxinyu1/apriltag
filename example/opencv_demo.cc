@@ -180,24 +180,25 @@ public:
         /////////////////////////////////////////////////////////////////////////////////
         T r5 , r6;
         Eigen::Matrix<T,1,1> e_y = (t1-t2).transpose()*Eigen::Vector3d(0,1,0);
-        r5 = ((t2-t1).transpose()*(t2-t1))(0,0)-(0.204*0.204);
+        r5 = ((t2-t1).transpose()*(t2-t1)).norm()-(0.21*0.21);
         r6 = e_y.transpose()*e_y;
 
         /////////////////////////////////////////////////////////////////////////////////
-        // std::cout << "forward_error = " << forward_error[0] << "\n";
-        // std::cout << "r2 = " << r2[0]<< "\n";
-        // std::cout << "r4 = " << r4 << "\n";
-        // std::cout << "r5 = " << r5 << "\n";
-        // std::cout << "r6 = " << r6 << "\n";
+        std::cout << "forward_error = " << forward_error[0] << "\n";
+        std::cout << "r2 = " << r2[0]<< "\n";
+        std::cout << "r4 = " << r4 << "\n";
+        std::cout << "r5 = " << r5 << "\n";
+        std::cout << "r6 = " << r6 << "\n";
 
         residual[0] = forward_error[0] ;// 重投影误差第一项
-        residual[1] = forward_error[1] ; // 重投影误差第二项
-        residual[2] = r2[0]*1000.0; // 给权重
-        residual[3] = r2[1]*1000.0; // 给权重
-        residual[4] = r2[2]*1000.0; // 给权重
-        residual[5] = r4*1000.0; // 给权重
-        residual[6] = r5*1000.0; // 给权重
-        residual[7] = r6*1000.0; // 给权重
+        residual[1] = forward_error[1]; // 重投影误差第二项
+        // residual[2] = r2*1000.0; // 给权重
+        residual[2] = r2[0]*100000.0; // 给权重
+        residual[3] = r2[1]*10000.0; // 给权重
+        residual[4] = r2[2]*10000.0; // 给权重
+        residual[5] = r4*100000.0; // 点共面
+        residual[6] = r5*1000.0; // tag中心距离
+        residual[7] = r6*1000.0; // 高度一致
 
         /////////////////////////////////////////////////////////////////////////////////
         return true;
@@ -788,9 +789,9 @@ int main(int argc, char *argv[])
     preBuildDistortedLookupTable(distortLookupTable,(1920-600),(1080-400));
 
     Mat gray, rgbImage,rgbImageRaw;
-    const int testNumber = 31;
+    const int testNumber = 10;
 
-    for ( int imageIndex = 4 ; imageIndex < testNumber; imageIndex++)
+    for ( int imageIndex = 1 ; imageIndex < testNumber; imageIndex++)
     {
         std::cout << "\n<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< NEW IMAGE <<<<<<<<<<<<<<<<<<< diatance = "<< imageIndex*10 <<"cm \n";
 
@@ -1119,8 +1120,8 @@ int main(int argc, char *argv[])
         {
             if ( id3ready && id6ready )
             {
-                Eigen::Vector3d pointTagTest(0.1029,0.0483,-0.25);
-                Eigen::Vector3d pointTagTest_(-0.1029,0.0483,-0.25);
+                Eigen::Vector3d pointTagTest(0.105,0.051,-0.25);
+                Eigen::Vector3d pointTagTest_(-0.105,0.051,-0.25);
                 Eigen::Vector3d pointTagTest1 = (rotationMatrixTag2*pointTagTest+tranVecTag2);
                 Eigen::Vector3d pointTagTest2 = (rotationMatrixTag1*pointTagTest_+tranVecTag1);
                 Eigen::Vector3d point_uv_1 = K*pointTagTest1;
@@ -1213,11 +1214,6 @@ int main(int argc, char *argv[])
             }
         };
 
-        
-
-
-
-        // checkTagPose(false);
 
         // TODO: R1 t1 R2 t2
         if ( id3ready && id6ready )
@@ -1226,13 +1222,12 @@ int main(int argc, char *argv[])
         }
         
         checkTagPose(true);
-        checkOnRawImage();
+        // checkOnRawImage();
 
         auto t8 = getTime();
         // std::cout << "[Time] estimate_tag_pose = " << t8-t7_<< "ms\n";
         // std::cout << ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>[Time] all time = " << t8-t1<< "ms\n" << std::endl;
         apriltag_detections_destroy(detections);
-
 
         std::string out_path0 = "/data/rgb/res_"+std::to_string(imageIndex)+".jpg";
         SaveImage(frame,out_path0);
