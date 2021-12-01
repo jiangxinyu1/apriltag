@@ -65,6 +65,34 @@ using ceres::Problem;
 using ceres::Solve;
 using ceres::Solver;
 
+
+class distortedCostFunctor{
+public:
+    // 构造函数
+    distortedCostFunctor(cv::Point2d &point_distortion,const Eigen::Matrix3d& KMat) : point_distortion_(point_distortion),KMat_(KMat){}
+
+    // 定义残差项计算方法
+    template <typename T>
+    bool operator() (const T* const point, T* residual) const 
+    {
+        double k1 =-0.338011, k2 = 0.130450, p1 = 0.000287, p2 =0.000001 ,k3=  -0.024906;
+        T x1 = point[0];
+        T y1 = point[1];
+        T r2 =x1*x1+y1*y1;
+        T r4 =r2*r2;
+        T r6 =r2*r2*r2;
+        T res1 = point_distortion_.x - x1*(1.0+(T)k1*r2+(T)k2*r4+(T)k3*r6)+2.0*(T)p1*x1*y1+(T)p2*(r2+2.0*x1*x1);
+        T res2 = point_distortion_.y - y1*(1.0+(T)k1*r2+(T)k2*r4+(T)k3*r6)+(T)p1*(r2+2.0*y1*y1)+2.0*(T)p2*x1*y1;
+        residual[0] = res1;
+        residual[1] = res2;
+        return true;
+    } // operator ()
+
+private:
+    const cv::Point2d &point_distortion_;
+    Eigen::Matrix3d KMat_;
+};
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class CostFunctor{
@@ -189,11 +217,7 @@ void preBuildDistortedLookupTable(std::vector<std::vector<distortion_uv >> &look
 void myImageDistorted(cv::Mat &src , cv::Mat &image_undistort,const std::vector<std::vector<distortion_uv>> &lookupTable);
 cv::Mat ComputeH(const vector<cv::Point2f> &vP1, const vector<cv::Point2f> &vP2);
 void homography_compute3(double c[4][4] , Eigen::Matrix3d &H);
-void poseOptimizationAll(const std::vector<Eigen::Vector3d>& tag1_points, 
-                                             const std::vector<Eigen::Vector3d>& tag2_points,
-                                             const Eigen::Matrix3d &K,
-                                             Eigen::Matrix3d & R1, Eigen::Vector3d & t1,
-                                             Eigen::Matrix3d & R2, Eigen::Vector3d & t2 );
+
 void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points, 
                                              const std::vector<Eigen::Vector3d>& tag2_points,
                                              const Eigen::Matrix3d &K,
@@ -612,7 +636,7 @@ void refinementCornerWithGFTT(const cv::Mat &frame, const std::vector<cv::Point2
         auto currentSelect = cv::Rect(halfWindowSize-halfSmallWindowSize,halfWindowSize-halfSmallWindowSize,2*halfSmallWindowSize+1,2*halfSmallWindowSize+1);
         cv::Mat  tmpMat = mat(currentSelect);
         double maxValue;    // 最大值，最小值
-        cv::Point  maxIdx;    // 最小值坐标，最大值坐标     
+        cv::Point  maxIdx;    // 最小值坐标，最大值坐标
         cv::minMaxLoc(tmpMat, nullptr, &maxValue, nullptr, &maxIdx);
         // std::cout << "corner_" << count << "\n"<< tmpMat << "\n"; 
         // std::cout << "最大值：" << maxValue  << ", 最大值位置：" << maxIdx << std::endl;
@@ -667,14 +691,69 @@ void computeHomographyWithCorners( const std::vector<cv::Point2f> &corners_final
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-void refinementCornersOnRawImage( const std::vector<cv::Point2f> &corners, const cv::Mat &rawImage,std::vector<cv::Point2f> &new_corners)
+/**
+ * @brief 
+ * 
+ * @param corners 
+ * @param rawImage 
+ * @param frame 
+ * @param new_corners 
+ */
+void refinementCornersOnRawImage( const std::vector<cv::Point2f> &corners, const cv::Mat &rawImage, const cv::Mat &frame ,std::vector<cv::Point2f> &new_corners)
 {
-    
-
+    // 畸变参数
+    double k1 =-0.338011, k2 = 0.130450, p1 = 0.000287, p2 =0.000001 ,k3=  -0.024906;
+    // 内参 
+    double fx = 934.166126, fy = 935.122766, cx = 960.504061-300, cy =  562.707915-200;
+    Eigen::Matrix3d cameraK;
+    cameraK << fx,0,cx,0,fy,cy,0,0,1;
+    cv::Mat raw_im = rawImage.clone();
+    cv::Mat im = frame.clone();
+    // 1 转回到原始图像上
+    std::vector<cv::Point2f> corners_on_raw;
+    for ( int i = 0 ; i < 4; i ++ )
+    {
+        auto x1 = (corners[i].x - cx)/fx;
+        auto y1 = (corners[i].y - cy)/fy;
+        double r2;
+        //  由畸变参数计算每个点发生畸变后在归一化平面的对应坐标 (x_distorted,y_distorted)
+        r2 = pow(x1,2)+pow(y1,2);
+        auto x_distorted  = x1*(1+k1*r2+k2*pow(r2,2)+k3*pow(r2,3))+2*p1*x1*y1+p2*(r2+2*x1*x1);
+        auto y_distorted = y1*(1+k1*r2+k2*pow(r2,2)+k3*pow(r2,3))+p1*(r2+2*y1*y1)+2*p2*x1*y1;
+        //  将畸变后的点由内参矩阵投影到像素平面,得到该点在输入的带有畸变图像上的位置
+        corners_on_raw.emplace_back(cv::Point2f(fx*x_distorted+cx,fy*y_distorted+cy));
+    }
+    // 2 在原始图像上计算亚像素的角点
+    std::vector<cv::Point2f> corners_on_raw_after_gftt;
+    refinementCornerWithGFTT(raw_im,corners_on_raw,corners_on_raw_after_gftt);
+    std::vector<cv::Point2f> corners_on_raw_after_subpixel;
+    refinementCornerWithSubPixel(raw_im,corners_on_raw_after_gftt,corners_on_raw_after_subpixel);
+    // 3 反投回
+    for (int j = 0 ; j < 4; j++)
+    {
+        double x_distortion = (corners_on_raw_after_subpixel[j].x - cx)/fx;
+        double y_distortion = (corners_on_raw_after_subpixel[j].y - cy)/fy;
+        double point[2];
+        point[0] = x_distortion;
+        point[1] = y_distortion;
+        std::cout << "[Before]" << point[0] << "," <<point[1] << "\n";
+        cv::Point2d point_distortion(x_distortion,y_distortion);
+        ceres::Problem problem;
+        ceres::LossFunction* loss_function = NULL;
+        distortedCostFunctor *Cost_functor = new distortedCostFunctor (point_distortion,cameraK);
+        problem.AddResidualBlock(new AutoDiffCostFunction<distortedCostFunctor,2,2> (Cost_functor), loss_function,point);
+        ceres::Solver::Options solver_options;//实例化求解器对象    
+        solver_options.linear_solver_type=ceres::DENSE_QR;
+        solver_options.minimizer_progress_to_stdout= true;
+        //实例化求解对象
+        ceres::Solver::Summary summary;
+        ceres::Solve(solver_options,&problem,&summary);
+        std::cout << "[After]" << point[0] << "," <<point[1] << "\n";
+        float x_undistortion = fx*point[0]+cx;
+        float y_undistortion = fy*point[1]+cy;
+        new_corners.emplace_back(cv::Point2f(x_undistortion,y_undistortion));
+    }
 }
-
-
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -749,6 +828,9 @@ int main(int argc, char *argv[])
 
         YUV4202GRAY_CV_SAVE(new_path,rgbImageRaw,1920,1080);
 
+        auto my_select = cv::Rect(300,200,1320,680);
+        cv::Mat rawImageFor = rgbImageRaw(my_select);
+
         imagePreprocess(rgbImageRaw,frame,distortLookupTable);
 
         // Make an image_u8_t header for the Mat data
@@ -810,6 +892,7 @@ int main(int argc, char *argv[])
             };
             updateCorners();
 
+#if 0
             //  cal GFTT
             std::vector<cv::Point2f> corners_after_gftt;
             refinementCornerWithGFTT(frame,corners,corners_after_gftt);
@@ -817,10 +900,13 @@ int main(int argc, char *argv[])
             //  do cornerSubPix
             std::vector<cv::Point2f> corners_after_subpixel;
             refinementCornerWithSubPixel(frame,corners_after_gftt,corners_after_subpixel);
+#endif
+            std::vector<cv::Point2f> corners_after_refinementOnRawImage;
+            refinementCornersOnRawImage(corners,rawImageFor,frame,corners_after_refinementOnRawImage);
 
             //  确定最终的角点
             std::vector<cv::Point2f> corners_final;
-            corners_final = corners_after_subpixel;
+            corners_final = corners_after_refinementOnRawImage;
             for(int i = 0; i < corners_final.size(); i++)
             {
                 printf("corners_final %i = %f ,%f\n",i,corners_final[i].x,corners_final[i].y);
@@ -945,12 +1031,12 @@ int main(int argc, char *argv[])
             };
             // reprojection();
             
-            for(int corner_id = 0; corner_id < corners_after_gftt.size(); corner_id++)
+            for(int corner_id = 0; corner_id < 4; corner_id++)
             {
-                image_with_init_corners.at<uint8_t>(std::round(corners[corner_id].y),std::round(corners[corner_id].x)) = 255;
-                cv::circle(image_with_init_corners, corners[corner_id], 5, cv::Scalar(0, 255, 0), 2, 8, 0);
-                image_with_gftt_corners.at<uint8_t>(std::round(corners_after_gftt[corner_id].y),std::round(corners_after_gftt[corner_id].x)) = 255;
-                cv::circle(image_with_gftt_corners, corners_after_gftt[corner_id], 5, cv::Scalar(0, 255, 0), 2, 8, 0);
+                // image_with_init_corners.at<uint8_t>(std::round(corners[corner_id].y),std::round(corners[corner_id].x)) = 255;
+                // cv::circle(image_with_init_corners, corners[corner_id], 5, cv::Scalar(0, 255, 0), 2, 8, 0);
+                // image_with_gftt_corners.at<uint8_t>(std::round(corners_after_gftt[corner_id].y),std::round(corners_after_gftt[corner_id].x)) = 255;
+                // cv::circle(image_with_gftt_corners, corners_after_gftt[corner_id], 5, cv::Scalar(0, 255, 0), 2, 8, 0);
                 image_with_subpixel_corners.at<uint8_t>(std::round(corners_final[corner_id].y),std::round(corners_final[corner_id].x)) = 255;
                 cv::circle(image_with_subpixel_corners, corners_final[corner_id], 5, cv::Scalar(0, 255, 0), 2, 8, 0);
             }
@@ -1094,8 +1180,8 @@ int main(int argc, char *argv[])
         // pinjit
         std::vector<cv::Mat> imageVec;
         cv::Mat combineImage;
-        imageVec.push_back(image_with_init_corners);
-        imageVec.push_back(image_with_gftt_corners);
+        // imageVec.push_back(image_with_init_corners);
+        // imageVec.push_back(image_with_gftt_corners);
         imageVec.push_back(image_with_subpixel_corners);
         imageVec.push_back(image_check);
         // imageVec.push_back(image_raw);
