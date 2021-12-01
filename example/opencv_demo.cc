@@ -116,47 +116,6 @@ public:
         r2[1] = (y1.cross(y2)).norm();
         r2[2] = (x1.cross(x2)).norm();
         /////////////////////////////////////////////////////////////////////////////////
-#if 0        
-        // todo: 3  Camera系下，tag1 的每个点（角点与中心点）与 tag2 的中心点组成的向量与 tag2的pose垂直
-        Eigen::Matrix<T,3,1> curPoint;
-        Eigen::Matrix<T,3,1> targetCenterPoint;
-        Eigen::Matrix<T,3,1> vec_corner_center;
-        T r3;
-        if ( tagFlag_ == 1 )
-        {
-            // 使用对应的tag系下的点，计算当前点的深度值
-            Eigen::Matrix<T,3,1> tmp =  R1*real_point_+t1;
-            curPoint[2] =tmp[2];
-            curPoint[0] = curPoint[2]*(tag_point_[0] - KMat_(0,2))/KMat_(0,0);
-            curPoint[1] = curPoint[2]*(tag_point_[1] - KMat_(1,2))/KMat_(1,1);
-            curPoint = R1.transpose()*(curPoint-t1);
-            // 
-            targetCenterPoint[2] = t2[2];
-            targetCenterPoint[0] = targetCenterPoint[2]*(tag_center_2_point_[0] - KMat_(0,2))/KMat_(0,0);
-            targetCenterPoint[1] = targetCenterPoint[2]*(tag_center_2_point_[1] - KMat_(1,2))/KMat_(1,1);
-            targetCenterPoint = R1.transpose()*(targetCenterPoint-t1);
-            // 
-            vec_corner_center = curPoint - targetCenterPoint;
-            r3 = (vec_corner_center.transpose()*z2).norm();
-        }
-        if ( tagFlag_ == 2 )
-        {
-            // 使用对应的tag系下的点，计算当前点的深度值
-            Eigen::Matrix<T,3,1> tmp =  R2*real_point_+t2;
-            curPoint[2] =tmp[2];
-            curPoint[0] = curPoint[2]*(tag_point_[0] - KMat_(0,2))/KMat_(0,0);
-            curPoint[1] = curPoint[2]*(tag_point_[1] - KMat_(1,2))/KMat_(1,1);
-            curPoint = R2.transpose()*(curPoint-t2);
-            // 
-            targetCenterPoint[2] = t1[2];
-            targetCenterPoint[0] = targetCenterPoint[2]*(tag_center_1_point_[0] - KMat_(0,2))/KMat_(0,0);
-            targetCenterPoint[1] = targetCenterPoint[2]*(tag_center_1_point_[1] - KMat_(1,2))/KMat_(1,1);
-            targetCenterPoint = R2.transpose()*(targetCenterPoint-t2);
-            vec_corner_center = curPoint - targetCenterPoint;
-            r3 = (vec_corner_center.transpose()*z1).norm();
-        }
-#endif        
-        /////////////////////////////////////////////////////////////////////////////////
         // todo: 3-2  Camera系下，tag1 的每个点（角点与中心点）与 tag2 的中心点组成的向量与 tag2的pose垂直
         Eigen::Matrix<T,3,1> TagPoint_camera;
         Eigen::Matrix<T,3,1> TagCenterPoint_camera;
@@ -183,16 +142,8 @@ public:
         r5 = ((t2-t1).transpose()*(t2-t1)).norm()-(0.21*0.21);
         r6 = e_y.transpose()*e_y;
 
-        /////////////////////////////////////////////////////////////////////////////////
-        std::cout << "forward_error = " << forward_error[0] << "\n";
-        std::cout << "r2 = " << r2[0]<< "\n";
-        std::cout << "r4 = " << r4 << "\n";
-        std::cout << "r5 = " << r5 << "\n";
-        std::cout << "r6 = " << r6 << "\n";
-
         residual[0] = forward_error[0] ;// 重投影误差第一项
         residual[1] = forward_error[1]; // 重投影误差第二项
-        // residual[2] = r2*1000.0; // 给权重
         residual[2] = r2[0]*100000.0; // 给权重
         residual[3] = r2[1]*10000.0; // 给权重
         residual[4] = r2[2]*10000.0; // 给权重
@@ -200,81 +151,12 @@ public:
         residual[6] = r5*1000.0; // tag中心距离
         residual[7] = r6*1000.0; // 高度一致
 
-        /////////////////////////////////////////////////////////////////////////////////
         return true;
     } // operator ()
 
 private:
     const Eigen::Vector3d tag_point_;
     const Eigen::Vector3d tag_center_1_point_; // 图像系下中心点（u,v,1）
-    const Eigen::Vector3d tag_center_2_point_;
-    const Eigen::Vector3d real_point_;
-    Eigen::Matrix3d KMat_;
-    int tagFlag_;
-};
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-class CostFunctor2{
-public:
-    // 构造函数
-    CostFunctor2(const Eigen::Vector3d& tag_point, 
-                            const  Eigen::Vector3d& tag_center_1_point,
-                            const  Eigen::Vector3d& tag_center_2_point,
-                            const Eigen::Vector3d& real_point,
-                            const Eigen::Matrix3d& KMat,
-                            const int tagFlag):
-        tag_point_(tag_point), tag_center_1_point_(tag_center_1_point), tag_center_2_point_(tag_center_2_point),real_point_(real_point),KMat_(KMat) ,tagFlag_(tagFlag){}
-
-    // 定义残差项计算方法
-    template <typename T>
-    bool operator()(const T* const RT, T* residual) const 
-    {
-        // TODO : 将待优化参数组织成旋转矩阵R1和R2，t1,t2
-        // std::cout << "Cost [RT_] = " << RT[0] <<","<<  RT[1] <<","<<  RT[2] <<","<<  RT[3] <<","<<  RT[4] <<","<<  RT[5] <<","<<  RT[6] << "\n";
-        Eigen::AngleAxis<T> rotation_vec1(RT[0],Eigen::Matrix<T,3,1>(RT[1],RT[2],RT[3]));
-        Eigen::Matrix<T,3,1> t1(RT[4],RT[5],RT[6]);
-        // std::cout << "Cost rotation_vec1 angle = " << endl << rotation_vec1.angle() << "\n";
-        // std::cout << "Cost rotation_vec1 axis = " << endl << rotation_vec1.axis() << "\n";
-        // std::cout << "Cost rotation_vec1" << endl << rotation_vec1.matrix() << endl;
-        Eigen::AngleAxis<T> rotation_vec2(RT[7],Eigen::Matrix<T,3,1>(RT[8],RT[9],RT[10]));
-        Eigen::Matrix<T,3,1> t2(RT[11],RT[12],RT[13]);
-        Eigen::Matrix<T,3,3> R1 = rotation_vec1.toRotationMatrix();
-        Eigen::Matrix<T,3,3> R2 =rotation_vec2.toRotationMatrix();
-
-        // std::cout << " cost rotation_vec1 = " << std::endl << rotation_vec1.matrix() << "\n";
-        // std::cout << " cost R1 = "<< std::endl  << R1 << "\n";
-        // std::cout << " cost t1 = "<< std::endl  << t1 << "\n";
-        /////////////////////////////////////////////////////////////////////////////////
-        // todo：1 计算tag1和tag2的重投影残差
-        Eigen::Matrix<T,3,1> tmp1;
-        if ( tagFlag_ == 1 )
-        {
-            tmp1= KMat_*(R1* real_point_ + t1);
-        }
-        else if ( tagFlag_ == 2 )
-        {
-            tmp1= KMat_*(R2* real_point_ + t2);
-        }
-        T forward_error[2];
-        tmp1(0,0) = tmp1(0,0) / tmp1(2,0);
-        tmp1(1,0) = tmp1(1,0) / tmp1(2,0);
-        tmp1(2,0) = tmp1(2,0) / tmp1(2,0);
-        forward_error[0] = tag_point_[0]  - tmp1(0,0);
-        forward_error[1]= tag_point_[1] - tmp1(1,0);
-
-        // todo : 2 
-        residual[0] = (forward_error[0] *forward_error[0])+(forward_error[1]*forward_error[1]);
-        residual[1] = (1.0 - (RT[1]*RT[1]+RT[2]*RT[2]+RT[3]*RT[3]));
-        residual[2] = (1.0 - (RT[8]*RT[8]+RT[9]*RT[9]+RT[10]*RT[10]));
-
-        return true;
-    } // operator ()
-
-private:
-    const Eigen::Vector3d tag_point_;
-    const Eigen::Vector3d tag_center_1_point_;
     const Eigen::Vector3d tag_center_2_point_;
     const Eigen::Vector3d real_point_;
     Eigen::Matrix3d KMat_;
@@ -585,10 +467,6 @@ void myImageDistorted(cv::Mat &src , cv::Mat &image_undistort)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 bool SaveImage(const cv::Mat& img, std::string& absolutePath)
 {
-    if(!img.data || absolutePath.empty())
-    {
-        return false;
-    }
     std::vector<int> compression_params;
     // compression_params.push_back(CV_IMWRITE_PNG_COMPRESSION);//选择PNG格式
     compression_params.push_back(16);//选择PNG格式
@@ -619,49 +497,6 @@ void YU12toRGB(std::string &yuv_file_path,cv::Mat &rgb_Img,const int w , const i
     }
 	delete[] pYuvBuf;
 	fclose(pFileIn);
-}
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-void poseOptimizationAll(const std::vector<Eigen::Vector3d>& tag1_points, 
-                                             const std::vector<Eigen::Vector3d>& tag2_points,
-                                             const Eigen::Matrix3d &K,
-                                             Eigen::Matrix3d & R1, Eigen::Vector3d & t1,
-                                             Eigen::Matrix3d & R2, Eigen::Vector3d & t2 )
-{
-    const std::vector<Eigen::Vector3d> real_points{ Eigen::Vector3d (-0.03,0.03,0.0), Eigen::Vector3d (0.03,0.03,0.0), Eigen::Vector3d (0.03,-0.03,0.0),
-                                                                                        Eigen::Vector3d (-0.03,-0.03,0.0), Eigen::Vector3d (0.0,0.0,0.0)};
-
-    // 旋转矩阵转成旋转向量
-    Eigen::AngleAxisd rotation_vec1;
-    rotation_vec1.fromRotationMatrix(R1);
-    Eigen::AngleAxisd rotation_vec2;
-    rotation_vec2.fromRotationMatrix(R2);
-
-    double RT_[14] = {rotation_vec1.angle(),rotation_vec1.axis()[0],rotation_vec1.axis()[1],rotation_vec1.axis()[2],t1[0],t1[1],t1[2],
-                                    rotation_vec2.angle(),rotation_vec2.axis()[0],rotation_vec2.axis()[1],rotation_vec2.axis()[2],t2[0],t2[1],t2[2]};
-
-
-    std::cout << "[ Before RT_] = " << RT_[0] <<","<<  RT_[1] <<","<<  RT_[2] <<","<<  RT_[3] <<","<<  RT_[4] <<","<<  RT_[5] <<","<<  RT_[6] << "\n";
-    // Build the problem.
-    ceres::Problem problem;
-    for(int i = 0 ; i < 4; i++)
-    {
-        CostFunctor2 *Cost_functor = new CostFunctor2 (tag1_points[i],tag1_points[4],tag2_points[4],real_points[i],K,1);
-        problem.AddResidualBlock( new AutoDiffCostFunction<CostFunctor2,3,14> (Cost_functor), nullptr,RT_);
-    }
-    for(int i = 0 ; i < 4; i++)
-    {
-        CostFunctor2 *Cost_functor2 = new CostFunctor2 (tag2_points[i],tag1_points[4],tag2_points[4],real_points[i],K,2);
-        problem.AddResidualBlock(new AutoDiffCostFunction<CostFunctor2,3,14> (Cost_functor2), nullptr ,RT_);
-    }
-    // Run the solver!
-    ceres::Solver::Options solver_options;//实例化求解器对象
-    solver_options.linear_solver_type=ceres::DENSE_NORMAL_CHOLESKY;
-    solver_options.minimizer_progress_to_stdout= true;
-    //实例化求解对象
-    ceres::Solver::Summary summary;
-    ceres::Solve(solver_options,&problem,&summary);
-    std::cout << "[ After RT_] = " << RT_[0] <<","<<  RT_[1] <<","<<  RT_[2] <<","<<  RT_[3] <<","<<  RT_[4] <<","<<  RT_[5] <<","<<  RT_[6] << "\n";
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -702,7 +537,7 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points,
         problem.SetParameterization(quaternion1.coeffs().data(), quaternion_local_parameterization);
         problem.SetParameterization(quaternion2.coeffs().data(), quaternion_local_parameterization);
     }
-    // todo : Solve
+    // Solve
     ceres::Solver::Options solver_options;//实例化求解器对象    
     solver_options.linear_solver_type=ceres::DENSE_QR;
     solver_options.minimizer_progress_to_stdout= false;
@@ -710,7 +545,7 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points,
     ceres::Solver::Summary summary;
     ceres::Solve(solver_options,&problem,&summary);
 
-    // Todo: print result
+    // print result
     R1 = quaternion1.toRotationMatrix();
     R2 = quaternion2.toRotationMatrix();
     Eigen::Vector3d m = R1.col(2);
@@ -725,6 +560,29 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points,
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void  imagePreprocess( cv::Mat &rgbImageRaw , cv::Mat & frame, std::vector<std::vector<distortion_uv_4>> &distortLookupTable)
+{
+        //  2 裁剪
+        auto my_select = cv::Rect(300,200,1320,680);
+        cv::Mat rgbImage = rgbImageRaw(my_select);
+
+        // 3 图像降采样
+        int rows = rgbImage.rows, cols = rgbImage.cols;
+        cv::Mat newFrame = rgbImage;
+        // cv::pyrDown(rgbImage,newFrame,cv::Size(cols/2,rows/2));
+        // std::cout << newFrame.rows << "." << newFrame.cols<< "\n";
+        auto t3 = getTime();
+
+        // TODO : 4 对RGB图像去畸变
+        cv::Mat frame1 = cv::Mat(newFrame.rows, newFrame.cols, CV_8UC1);   // 去畸变以后的图
+        myImageDistorted(newFrame,frame1,distortLookupTable);
+        //  TODO : 5 直方图均衡化
+        frame = frame1.clone();
+        // cv::equalizeHist(frame1,frame);
+        // TODO : 6   RGB转成灰度图  
+        // cvtColor(frame, gray, COLOR_BGR2GRAY);
+        // gray = frame;
+}
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -735,12 +593,8 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points,
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char *argv[])
 {
-    std::string path = "/home/xinyu/workspace/360/OFei-RGB/yuv2rgb/pic/";
-
     getopt_t *getopt = getopt_create();
-
     Eigen::Matrix3d K ;
-
     getopt_add_bool(getopt, 'h', "help", 0, "Show this help");
     getopt_add_bool(getopt, 'd', "debug", 0, "Enable debugging output (slow)");
     getopt_add_bool(getopt, 'q', "quiet", 0, "Reduce output");
@@ -788,7 +642,7 @@ int main(int argc, char *argv[])
     std::vector<std::vector<distortion_uv_4>> distortLookupTable;
     preBuildDistortedLookupTable(distortLookupTable,(1920-600),(1080-400));
 
-    Mat gray, rgbImage,rgbImageRaw;
+    Mat frame,rgbImageRaw;
     const int testNumber = 10;
 
     for ( int imageIndex = 1 ; imageIndex < testNumber; imageIndex++)
@@ -798,36 +652,10 @@ int main(int argc, char *argv[])
         //  TODO： 1 循环读取YUV将其转成GRAY
         auto t1 = getTime();
         std::string new_path = "/data/rgb/"+std::to_string(imageIndex)+".yuv";
-        // YU12toRGB(new_path,rgbImageRaw,1920,1080,0);
+
         YUV4202GRAY_CV_SAVE(new_path,rgbImageRaw,1920,1080);
-        auto t2 = getTime();
-        // std::cout << "[Time] YU12toRGB = " << t2-t1 << "ms\n";
-        // TODO : 2 裁剪
-        auto my_select = cv::Rect(300,200,1320,680);
-        rgbImage = rgbImageRaw(my_select);
-        auto t21 = getTime();
-        // std::cout << "[Time] cut Image = " << t21-t2 << "ms\n";
-        // TODO :  3 图像降采样
-        int rows = rgbImage.rows, cols = rgbImage.cols;
-        cv::Mat newFrame = rgbImage;
-        // cv::pyrDown(rgbImage,newFrame,cv::Size(cols/2,rows/2));
-        // std::cout << newFrame.rows << "." << newFrame.cols<< "\n";
-        auto t3 = getTime();
-        // std::cout << "[Time] pyrDown = " << t3-t21 << "ms\n";
-        // TODO : 4 对RGB图像去畸变
-        cv::Mat frame1 = cv::Mat(newFrame.rows, newFrame.cols, CV_8UC1);   // 去畸变以后的图
-        // myImageDistorted(newFrame,frame);
-        myImageDistorted(newFrame,frame1,distortLookupTable);
-        //  TODO : 5 直方图均衡化
-        cv::Mat frame = frame1;
-        // cv::equalizeHist(frame1,frame);
-        auto t4 = getTime();
-        // std::cout << "[Time] myImageDistorted = " << t4-t3 << "ms\n";
-        // TODO : 6   RGB转成灰度图  
-        // cvtColor(frame, gray, COLOR_BGR2GRAY);
-        // gray = frame;
-        auto t5 = getTime();
-        // std::cout << "[Time] cvtColor = " << t5-t4 << "ms\n";
+
+        imagePreprocess(rgbImageRaw,frame,distortLookupTable);
 
         // Make an image_u8_t header for the Mat data
         image_u8_t im = 
@@ -851,11 +679,10 @@ int main(int argc, char *argv[])
         Eigen::Matrix3d rotation_matrix;
 
         // cv::Mat init_frame;
-        cv::Mat image_with_init_corners = frame1.clone();
-        cv::Mat image_with_gftt_corners = frame1.clone();
-        cv::Mat image_with_subpixel_corners = frame1.clone();
-        cv::Mat image_raw = rgbImage.clone();
-        cv::Mat image_check = frame1.clone();
+        cv::Mat image_with_init_corners = frame.clone();
+        cv::Mat image_with_gftt_corners = frame.clone();
+        cv::Mat image_with_subpixel_corners = frame.clone();
+        cv::Mat image_check = frame.clone();
         std::vector<Eigen::Vector3d> tag1_points; // 用于存储Tag1的图像上角点及中心点
         std::vector<Eigen::Vector3d> tag2_points; // 用于存储Tag2的图像上角点及中心点
         Eigen::Matrix3d rotationMatrixTag1; 
@@ -1163,6 +990,7 @@ int main(int argc, char *argv[])
                 }
             }
         };
+
         auto checkOnRawImage = [&]()
         {
             if ( id3ready && id6ready )
@@ -1189,8 +1017,8 @@ int main(int argc, char *argv[])
                     //  3 将畸变后的点由内参矩阵投影到像素平面,得到该点在输入的带有畸变图像上的位置 
                     auto u_distorted = fx*x_distorted+cx;
                     auto v_distorted = fy*y_distorted+cy;
-                    image_raw.at<uint8_t>(std::round(v_distorted),std::round(u_distorted)) = 255;
-                    cv::circle(image_raw, cv::Point(u_distorted,v_distorted), 5, cv::Scalar(0, 255, 0), 2, 8, 0);
+                    // image_raw.at<uint8_t>(std::round(v_distorted),std::round(u_distorted)) = 255;
+                    // cv::circle(image_raw, cv::Point(u_distorted,v_distorted), 5, cv::Scalar(0, 255, 0), 2, 8, 0);
                 }
                 for (auto p : real_points_)
                 {
@@ -1208,8 +1036,8 @@ int main(int argc, char *argv[])
                     //  3 将畸变后的点由内参矩阵投影到像素平面,得到该点在输入的带有畸变图像上的位置 
                     auto u_distorted = fx*x_distorted+cx;
                     auto v_distorted = fy*y_distorted+cy;
-                    image_raw.at<uint8_t>(std::round(v_distorted),std::round(u_distorted)) = 255;
-                    cv::circle(image_raw, cv::Point(u_distorted,v_distorted), 5, cv::Scalar(0, 255, 0), 2, 8, 0);
+                    // image_raw.at<uint8_t>(std::round(v_distorted),std::round(u_distorted)) = 255;
+                    // cv::circle(image_raw, cv::Point(u_distorted,v_distorted), 5, cv::Scalar(0, 255, 0), 2, 8, 0);
                 }
             }
         };
@@ -1224,8 +1052,7 @@ int main(int argc, char *argv[])
         checkTagPose(true);
         // checkOnRawImage();
 
-        auto t8 = getTime();
-        // std::cout << "[Time] estimate_tag_pose = " << t8-t7_<< "ms\n";
+
         // std::cout << ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>[Time] all time = " << t8-t1<< "ms\n" << std::endl;
         apriltag_detections_destroy(detections);
 
@@ -1245,7 +1072,7 @@ int main(int argc, char *argv[])
         imageVec.push_back(image_with_gftt_corners);
         imageVec.push_back(image_with_subpixel_corners);
         imageVec.push_back(image_check);
-        imageVec.push_back(image_raw);
+        // imageVec.push_back(image_raw);
         cv::vconcat(imageVec,combineImage);
         std::string out_path4 = "/data/rgb/combineImage_"+std::to_string(imageIndex)+".jpg";
         SaveImage(combineImage,out_path4);
