@@ -113,7 +113,7 @@ public:
         Eigen::Matrix<T,3,3> R1 = quaternion1.toRotationMatrix();
         Eigen::Matrix<T,3,3> R2 = quaternion2.toRotationMatrix();
         /////////////////////////////////////////////////////////////////////////////////
-        // todo：1 计算tag1和tag2的重投影残差
+        //  1 计算tag1和tag2的重投影残差
         Eigen::Matrix<T,3,1> tmp1;
         if ( tagFlag_ == 1 )
         {
@@ -123,63 +123,58 @@ public:
         {
             tmp1= KMat_*(R2* real_point_ + t2);
         }
-        T forward_error[2];
-        forward_error[0] = tag_point_[0]  - tmp1(0,0)/tmp1(2,0);
-        forward_error[1]= tag_point_[1] - tmp1(1,0)/tmp1(2,0);
+        T r1[2];
+        r1[0] = tag_point_[0]  - tmp1(0,0)/tmp1(2,0);
+        r1[1]= tag_point_[1] - tmp1(1,0)/tmp1(2,0);
         /////////////////////////////////////////////////////////////////////////////////
-        // todo : 2 两个z轴的的夹角应为0
+        //  2 两个tag系轴之间的夹角应为0
         T r2[3];
-        Eigen::Matrix<double,3,1> tt (0,0,1);
-        Eigen::Matrix<T,3,1> z1 = R1*tt;
-        Eigen::Matrix<T,3,1> z2 = R2*tt;
+        Eigen::Matrix<double,3,1> ttz (0,0,1);
         Eigen::Matrix<double,3,1> ttx (1,0,0);
-        Eigen::Matrix<T,3,1> x1 = R1*ttx;
-        Eigen::Matrix<T,3,1> x2 = R2*ttx;
         Eigen::Matrix<double,3,1> tty (0,1,0);
-        Eigen::Matrix<T,3,1> y1 = R1*tty;
-        Eigen::Matrix<T,3,1> y2 = R2*tty;
-        // T r2 = ((z1.transpose()*z2).norm() /(z1.norm()*z2.norm())) -1.0 ;
-        r2[0] = (z1.cross(z2)).norm();
-        r2[1] = (y1.cross(y2)).norm();
-        r2[2] = (x1.cross(x2)).norm();
+        r2[0] = ((R1*ttz).cross(R2*ttz)).norm();
+        r2[1] = ((R1*tty).cross(R2*tty)).norm();
+        r2[2] = ((R1*ttx).cross(R2*ttx)).norm();
         /////////////////////////////////////////////////////////////////////////////////
-        // todo: 3-2  Camera系下，tag1 的每个点（角点与中心点）与 tag2 的中心点组成的向量与 tag2的pose垂直
+        //  3 Camera系下，tag1 的每个点（角点与中心点）与 tag2 的中心点组成的向量与 tag2的pose垂直
         Eigen::Matrix<T,3,1> TagPoint_camera;
         Eigen::Matrix<T,3,1> TagCenterPoint_camera;
         Eigen::Matrix<T,3,1> vec_;
-        T r4;
+        T r3;
         if ( tagFlag_ == 1 )
         {
-            TagPoint_camera =   R1*real_point_+t1;
+            TagPoint_camera = R1*real_point_+t1;
             TagCenterPoint_camera = R2*Eigen::Vector3d(0,0,0)+t2;
             vec_ = TagPoint_camera - TagCenterPoint_camera;
-            r4 = (vec_.transpose()*z2);
+            r3 = (vec_.transpose()*(R2*ttz));
         }
         if ( tagFlag_ == 2 )
         {
             // 使用对应的tag系下的点，计算当前点的深度值
-            TagPoint_camera =   R2*real_point_+t2;
+            TagPoint_camera = R2*real_point_+t2;
             TagCenterPoint_camera = R1*Eigen::Vector3d(0,0,0)+t1;
             vec_ = TagPoint_camera - TagCenterPoint_camera;
-            r4 = (vec_.transpose()*z1);
+            r3 = (vec_.transpose()*(R1*ttz));
         }
         /////////////////////////////////////////////////////////////////////////////////
-        T r5 , r6;
+        //  4  两个tag系中心之间的距离
+        T r4;
+        // r4 = ((t2-t1).transpose()*(t2-t1)).norm()-(0.21*0.21);
+        r4 = (t2-t1).norm() - 0.21;
+        T r5;
         Eigen::Matrix<T,1,1> e_y = (t1-t2).transpose()*Eigen::Vector3d(0,1,0);
-        r5 = ((t2-t1).transpose()*(t2-t1)).norm()-(0.21*0.21);
-        r6 = e_y.transpose()*e_y;
+        r5 = e_y.transpose()*e_y;
 
-        residual[0] = forward_error[0] ;// 重投影误差第一项
-        residual[1] = forward_error[1]; // 重投影误差第二项
-        residual[2] = r2[0]*100000.0; // 给权重
-        residual[3] = r2[1]*10000.0; // 给权重
-        residual[4] = r2[2]*10000.0; // 给权重
-        residual[5] = r4*100000.0; // 点共面
-        residual[6] = r5*1000.0; // tag中心距离
-        residual[7] = r6*1000.0; // 高度一致
-
+        residual[0] = r1[0] ;// 重投影误差第一项
+        residual[1] = r1[1]; // 重投影误差第二项
+        residual[2] = r2[0]*100000.0; // z轴
+        residual[3] = r2[1]*10000.0; // y轴
+        residual[4] = r2[2]*10000.0; // x轴
+        residual[5] = r3*100000.0; // 10点共面
+        residual[6] = r4*1000.0; // tag中心距离
+        residual[7] = r5*1000.0; // 高度一致
         return true;
-    } // operator ()
+    }
 
 private:
     const Eigen::Vector3d tag_point_;
@@ -216,12 +211,8 @@ void preBuildDistortedLookupTable(std::vector<std::vector<distortion_uv >> &look
 void myImageDistorted(cv::Mat &src , cv::Mat &image_undistort,const std::vector<std::vector<distortion_uv>> &lookupTable);
 cv::Mat ComputeH(const vector<cv::Point2f> &vP1, const vector<cv::Point2f> &vP2);
 void homography_compute3(double c[4][4] , Eigen::Matrix3d &H);
-
-void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points, 
-                                             const std::vector<Eigen::Vector3d>& tag2_points,
-                                             const Eigen::Matrix3d &K,
-                                             Eigen::Matrix3d & R1, Eigen::Vector3d & t1,
-                                             Eigen::Matrix3d & R2, Eigen::Vector3d & t2 );                                             
+void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points, const std::vector<Eigen::Vector3d>& tag2_points,
+                                         const Eigen::Matrix3d &K, Eigen::Matrix3d & R1, Eigen::Vector3d & t1, Eigen::Matrix3d & R2, Eigen::Vector3d & t2 );                                             
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void homography_compute3(double c[4][4] , Eigen::Matrix3d &H) 
@@ -567,8 +558,8 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points,
     Eigen::Vector3d n = R2.col(2);
     auto theta = std::acos((double)(m.transpose()*n) / (m.norm()*n.norm()));
     printf ("[AFTER]-----------------------------------The angle diff between id-3 and id-6 = %f \n",theta * 180/3.14159);
-    std::cout << "R1.transpose()*R1 = \n" << (R1.transpose()*R1) << std::endl;
-    std::cout << "R2.transpose()*R2= \n" << (R2.transpose()*R2)<< std::endl;
+    // std::cout << "R1.transpose()*R1 = \n" << (R1.transpose()*R1) << std::endl;
+    // std::cout << "R2.transpose()*R2= \n" << (R2.transpose()*R2)<< std::endl;
     std::cout << "[AFTER] t1  = \n" << t1[0] << "," <<t1[1] << "," << t1[2]<< std::endl;
     std::cout << "[AFTER] t2  = \n" << t2[0] << "," <<t2[1] << "," << t2[2]<< std::endl;
     // std::cout << summary.FullReport() << '\n';
@@ -758,9 +749,6 @@ void refinementCornersOnRawImage( const std::vector<cv::Point2f> &corners, const
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void writeOnImage(cv::Mat &frame , const cv::Point2i &position,std::string &text_str)
 {
-        // stringstream ss;
-        // ss << det->id;
-        // String text = ss.str();
         cv::String text = text_str;
         int fontface = FONT_HERSHEY_SIMPLEX;
         double fontscale = 1.0;
@@ -830,7 +818,8 @@ int main(int argc, char *argv[])
     std::vector<std::vector<distortion_uv_4>> distortLookupTable;
     preBuildDistortedLookupTable(distortLookupTable,(1920-600),(1080-400));
     // 
-    Mat frame,rgbImageRaw,backup_image;
+    Mat frame,rgbImageRaw;
+    cv::Mat backup_image; // 用于保存预处理后的图像
     const int testNumber = 10;
     for ( int imageIndex = 1 ; imageIndex < testNumber; imageIndex++)
     {
@@ -845,7 +834,7 @@ int main(int argc, char *argv[])
 
         imagePreprocess(rgbImageRaw,frame,distortLookupTable);
 
-        backup_image = frame.clone();
+        // backup_image = frame.clone();
 
         // Make an image_u8_t header for the Mat data
         image_u8_t im = 
@@ -886,23 +875,29 @@ int main(int argc, char *argv[])
             {
                 continue;
             }
-
+            // 
             std::vector<cv::Point2f> corners;
             corners.resize(4);
             printf("\n<<<<<<<<<<<< TAG ID = %i, decision_margin = %f\n", det->id,det->decision_margin);
 
             auto updateCorners = [&]()
             {
-                printf("detection result : \n");
                 for (int i = 0 ; i < 4; i++)
                 {
                     cv::Point2f tmp(det->p[i][0],det->p[i][1]);
                     corners[i] = tmp;
-                    // printf("detect conner %i =(%f , %f) \n",i,det->p[i][0],det->p[i][1]);
+                    
                 }
-                // printf("center = %f ,%f \n",det->c[0],det->c[1]);
-                // printf("Homography Matrix :  \n %f,%f,%f \n %f,%f,%f\n  %f,%f,%f\n", det->H->data[0],det->H->data[1],det->H->data[2],det->H->data[3],
-                //             det->H->data[4],det->H->data[5],det->H->data[6],det->H->data[7],det->H->data[8]);
+                if (0)
+                {
+                    for ( int i = 0 ; i < 4 ; i ++)
+                    {
+                        printf("Apriltag detect conner %i =(%f , %f) \n",i,det->p[i][0],det->p[i][1]);
+                    }
+                    printf("center = %f ,%f \n",det->c[0],det->c[1]);
+                    printf("Homography Matrix :  \n %f,%f,%f \n %f,%f,%f\n  %f,%f,%f\n", det->H->data[0],det->H->data[1],det->H->data[2],det->H->data[3],
+                                det->H->data[4],det->H->data[5],det->H->data[6],det->H->data[7],det->H->data[8]);
+                }
             };
             updateCorners();
 
@@ -1150,8 +1145,6 @@ int main(int argc, char *argv[])
         // 保存去除畸变的灰度图
         // std::string out_path_backup = "/home/xinyu/workspace/360/apriltags_tas/catkin_ws/src/apriltags_tas/apriltags_tas/example_images/"+std::to_string(imageIndex)+".jpg";
         // SaveImage(backup_image,out_path_backup);
-
-
 
         // pinjit
         std::vector<cv::Mat> imageVec;
