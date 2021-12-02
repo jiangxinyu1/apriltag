@@ -57,6 +57,7 @@ extern "C" {
 #include "apriltag_pose.h"
 }
 
+
 using namespace std;
 using namespace cv;
 using ceres::CostFunction;
@@ -68,14 +69,12 @@ using ceres::Solver;
 
 class distortedCostFunctor{
 public:
-    // 构造函数
     distortedCostFunctor(cv::Point2d &point_distortion,const Eigen::Matrix3d& KMat) : point_distortion_(point_distortion),KMat_(KMat){}
 
-    // 定义残差项计算方法
     template <typename T>
     bool operator() (const T* const point, T* residual) const 
     {
-        double k1 =-0.338011, k2 = 0.130450, p1 = 0.000287, p2 =0.000001 ,k3=  -0.024906;
+        double k1 =-0.338011, k2 = 0.130450, p1 = 0.000287, p2 = 0.000001 ,k3= -0.024906;
         T x1 = point[0];
         T y1 = point[1];
         T r2 =x1*x1+y1*y1;
@@ -372,7 +371,7 @@ void YUV4202GRAY_CV_SAVE(std::string &inputPath ,cv::Mat&grayImg,int width,int h
 {
     FILE* pFileIn = fopen(inputPath.data(),"rb+");
     unsigned char* data = (unsigned char*) malloc(width*height*3/2);
-    fread(data,height*width*sizeof(unsigned char),1,pFileIn);
+    auto size_ = fread(data,height*width*sizeof(unsigned char),1,pFileIn);
 	grayImg.create(height,width, CV_8UC1);
     memcpy(grayImg.data, data, height*width*sizeof(unsigned char));
     free(data);
@@ -498,7 +497,7 @@ void YU12toRGB(std::string &yuv_file_path,cv::Mat &rgb_Img,const int w , const i
 	FILE* pFileIn = fopen((yuv_file_path.data()), "rb+");
 	int bufLen = w*h*3/2;
 	unsigned char* pYuvBuf = new unsigned char[bufLen];
-	fread(pYuvBuf, bufLen*sizeof(unsigned char), 1, pFileIn);
+	auto size_ = fread(pYuvBuf, bufLen*sizeof(unsigned char), 1, pFileIn);
 	cv::Mat yuvImg;
 	yuvImg.create(h*3/2, w, CV_8UC1); 
 	memcpy(yuvImg.data, pYuvBuf, bufLen*sizeof(unsigned char));
@@ -734,6 +733,7 @@ void refinementCornersOnRawImage( const std::vector<cv::Point2f> &corners, const
         double x_distortion = (corners_on_raw_after_subpixel[j].x - cx)/fx;
         double y_distortion = (corners_on_raw_after_subpixel[j].y - cy)/fy;
         double point[2];
+        // todo : 完善一下初值
         point[0] = x_distortion;
         point[1] = y_distortion;
         std::cout << "[Before]" << point[0] << "," <<point[1] << "\n";
@@ -830,7 +830,7 @@ int main(int argc, char *argv[])
     std::vector<std::vector<distortion_uv_4>> distortLookupTable;
     preBuildDistortedLookupTable(distortLookupTable,(1920-600),(1080-400));
     // 
-    Mat frame,rgbImageRaw;
+    Mat frame,rgbImageRaw,backup_image;
     const int testNumber = 10;
     for ( int imageIndex = 1 ; imageIndex < testNumber; imageIndex++)
     {
@@ -844,6 +844,8 @@ int main(int argc, char *argv[])
         cv::Mat rawImageFor = rgbImageRaw(my_select);
 
         imagePreprocess(rgbImageRaw,frame,distortLookupTable);
+
+        backup_image = frame.clone();
 
         // Make an image_u8_t header for the Mat data
         image_u8_t im = 
@@ -929,6 +931,7 @@ int main(int argc, char *argv[])
             computeHomographyWithCorners(corners_final,newH);
             
             // 使用新的角点更新det的 H 及 corners
+
             auto updateDetwithNewCorners = [&] ()
             {
                 det->H->data[0] = newH(0,0);
@@ -1114,7 +1117,6 @@ int main(int argc, char *argv[])
             }
         };
 
-
         // TODO: R1 t1 R2 t2
         if ( id3ready && id6ready )
         {                
@@ -1137,14 +1139,19 @@ int main(int argc, char *argv[])
         //  
         std::string out_path2 = "/data/rgb/image_with_gftt_corners_"+std::to_string(imageIndex)+".jpg";
         SaveImage(image_with_gftt_corners,out_path2);
-        //  
+        //  保存最后优化完的角点
         std::string out_path3 = "/data/rgb/image_with_subpixel_corners_"+std::to_string(imageIndex)+".jpg";
         std::string image_with_subpixel_corners_label = "The result of corner optimization on the original image";
         writeOnImage(image_with_subpixel_corners,cv::Point2i(660,200),image_with_subpixel_corners_label);
         SaveImage(image_with_subpixel_corners,out_path3);
-        // 
+        // 在检测图上打印文本
         std::string image_check_label = "pose check";
         writeOnImage(image_check,cv::Point2i(660,200),image_check_label);
+        // 保存去除畸变的灰度图
+        // std::string out_path_backup = "/home/xinyu/workspace/360/apriltags_tas/catkin_ws/src/apriltags_tas/apriltags_tas/example_images/"+std::to_string(imageIndex)+".jpg";
+        // SaveImage(backup_image,out_path_backup);
+
+
 
         // pinjit
         std::vector<cv::Mat> imageVec;
