@@ -756,6 +756,18 @@ void refinementCornersOnRawImage( const std::vector<cv::Point2f> &corners, const
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void writeOnImage(cv::Mat &frame , const cv::Point2i &position,std::string &text_str)
+{
+        // stringstream ss;
+        // ss << det->id;
+        // String text = ss.str();
+        cv::String text = text_str;
+        int fontface = FONT_HERSHEY_SIMPLEX;
+        double fontscale = 1.0;
+        int baseline;
+        Size textsize = getTextSize(text, fontface, fontscale, 2,&baseline);
+        putText(frame, text, Point(position.x-textsize.width/2,position.y+textsize.height/2),fontface, fontscale, Scalar(0xff, 0x99, 0), 2);
+}
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -956,8 +968,7 @@ int main(int argc, char *argv[])
             int fontface = FONT_HERSHEY_SCRIPT_SIMPLEX;
             double fontscale = 1.0;
             int baseline;
-            Size textsize = getTextSize(text, fontface, fontscale, 2,
-                                            &baseline);
+            Size textsize = getTextSize(text, fontface, fontscale, 2,&baseline);
             putText(frame, text, Point(det->c[0]-textsize.width/2,det->c[1]+textsize.height/2),fontface, fontscale, Scalar(0xff, 0x99, 0), 2);
 
             //  3 estimate_tag_pose
@@ -1033,8 +1044,8 @@ int main(int argc, char *argv[])
             
             for(int corner_id = 0; corner_id < 4; corner_id++)
             {
-                // image_with_init_corners.at<uint8_t>(std::round(corners[corner_id].y),std::round(corners[corner_id].x)) = 255;
-                // cv::circle(image_with_init_corners, corners[corner_id], 5, cv::Scalar(0, 255, 0), 2, 8, 0);
+                image_with_init_corners.at<uint8_t>(std::round(corners[corner_id].y),std::round(corners[corner_id].x)) = 255;
+                cv::circle(image_with_init_corners, corners[corner_id], 5, cv::Scalar(0, 255, 0), 2, 8, 0);
                 // image_with_gftt_corners.at<uint8_t>(std::round(corners_after_gftt[corner_id].y),std::round(corners_after_gftt[corner_id].x)) = 255;
                 // cv::circle(image_with_gftt_corners, corners_after_gftt[corner_id], 5, cv::Scalar(0, 255, 0), 2, 8, 0);
                 image_with_subpixel_corners.at<uint8_t>(std::round(corners_final[corner_id].y),std::round(corners_final[corner_id].x)) = 255;
@@ -1103,57 +1114,6 @@ int main(int argc, char *argv[])
             }
         };
 
-        auto checkOnRawImage = [&]()
-        {
-            if ( id3ready && id6ready )
-            {
-                // 畸变参数
-                double k1 =-0.338011, k2 = 0.130450, p1 = 0.000287, p2 =0.000001 ,k3=  -0.024906;
-                // 内参 
-                double fx = 934.166126, fy = 935.122766, cx = 960.504061-300, cy =  562.707915-200;
-                const std::vector<Eigen::Vector3d> real_points_{ Eigen::Vector3d (-0.03,0.03,0.0), Eigen::Vector3d (0.03,0.03,0.0), Eigen::Vector3d (0.03,-0.03,0.0),
-                                                                                                    Eigen::Vector3d (-0.03,-0.03,0.0), Eigen::Vector3d (0.0,0.0,0.0)};
-                for (auto p : real_points_)
-                {
-                    Eigen::Vector3d p_uv = K*(rotationMatrixTag1*p+tranVecTag1);
-                    p_uv[0] = p_uv[0]/p_uv[2];
-                    p_uv[1] = p_uv[1]/p_uv[2];
-                    // 由畸变模型计算发生畸变后的像素坐标
-                    auto x1 = (p_uv[0] - cx)/fx;
-                    auto y1 = (p_uv[1] - cy)/fy;
-                    double r2;
-                    //  2 由畸变参数计算每个点发生畸变后在归一化平面的对应坐标 (x_distorted,y_distorted)
-                    r2 = pow(x1,2)+pow(y1,2);
-                    auto x_distorted  = x1*(1+k1*r2+k2*pow(r2,2)+k3*pow(r2,3))+2*p1*x1*y1+p2*(r2+2*x1*x1);
-                    auto y_distorted = y1*(1+k1*r2+k2*pow(r2,2)+k3*pow(r2,3))+p1*(r2+2*y1*y1)+2*p2*x1*y1;
-                    //  3 将畸变后的点由内参矩阵投影到像素平面,得到该点在输入的带有畸变图像上的位置 
-                    auto u_distorted = fx*x_distorted+cx;
-                    auto v_distorted = fy*y_distorted+cy;
-                    // image_raw.at<uint8_t>(std::round(v_distorted),std::round(u_distorted)) = 255;
-                    // cv::circle(image_raw, cv::Point(u_distorted,v_distorted), 5, cv::Scalar(0, 255, 0), 2, 8, 0);
-                }
-                for (auto p : real_points_)
-                {
-                    Eigen::Vector3d p_uv = K*(rotationMatrixTag2*p+tranVecTag2);
-                    p_uv[0] = p_uv[0]/p_uv[2];
-                    p_uv[1] = p_uv[1]/p_uv[2];
-                    // 由畸变模型计算发生畸变后的像素坐标
-                    auto x1 = (p_uv[0] - cx)/fx;
-                    auto y1 = (p_uv[1] - cy)/fy;
-                    double r2;
-                    //  2 由畸变参数计算每个点发生畸变后在归一化平面的对应坐标 (x_distorted,y_distorted)
-                    r2 = pow(x1,2)+pow(y1,2);
-                    auto x_distorted  = x1*(1+k1*r2+k2*pow(r2,2)+k3*pow(r2,3))+2*p1*x1*y1+p2*(r2+2*x1*x1);
-                    auto y_distorted = y1*(1+k1*r2+k2*pow(r2,2)+k3*pow(r2,3))+p1*(r2+2*y1*y1)+2*p2*x1*y1;
-                    //  3 将畸变后的点由内参矩阵投影到像素平面,得到该点在输入的带有畸变图像上的位置 
-                    auto u_distorted = fx*x_distorted+cx;
-                    auto v_distorted = fy*y_distorted+cy;
-                    // image_raw.at<uint8_t>(std::round(v_distorted),std::round(u_distorted)) = 255;
-                    // cv::circle(image_raw, cv::Point(u_distorted,v_distorted), 5, cv::Scalar(0, 255, 0), 2, 8, 0);
-                }
-            }
-        };
-
 
         // TODO: R1 t1 R2 t2
         if ( id3ready && id6ready )
@@ -1162,25 +1122,34 @@ int main(int argc, char *argv[])
         }
         
         checkTagPose(true);
-        // checkOnRawImage();
 
 
         // std::cout << ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>[Time] all time = " << t8-t1<< "ms\n" << std::endl;
         apriltag_detections_destroy(detections);
-
+        // 
         std::string out_path0 = "/data/rgb/res_"+std::to_string(imageIndex)+".jpg";
         SaveImage(frame,out_path0);
+        //  
         std::string out_path1 = "/data/rgb/image_with_init_corners_"+std::to_string(imageIndex)+".jpg";
+        std::string image_with_init_corners_label = "AprilTag corner detection results";
+        writeOnImage(image_with_init_corners,cv::Point2i(660,200),image_with_init_corners_label);
         SaveImage(image_with_init_corners,out_path1);
+        //  
         std::string out_path2 = "/data/rgb/image_with_gftt_corners_"+std::to_string(imageIndex)+".jpg";
         SaveImage(image_with_gftt_corners,out_path2);
+        //  
         std::string out_path3 = "/data/rgb/image_with_subpixel_corners_"+std::to_string(imageIndex)+".jpg";
+        std::string image_with_subpixel_corners_label = "The result of corner optimization on the original image";
+        writeOnImage(image_with_subpixel_corners,cv::Point2i(660,200),image_with_subpixel_corners_label);
         SaveImage(image_with_subpixel_corners,out_path3);
+        // 
+        std::string image_check_label = "pose check";
+        writeOnImage(image_check,cv::Point2i(660,200),image_check_label);
 
         // pinjit
         std::vector<cv::Mat> imageVec;
         cv::Mat combineImage;
-        // imageVec.push_back(image_with_init_corners);
+        imageVec.push_back(image_with_init_corners);
         // imageVec.push_back(image_with_gftt_corners);
         imageVec.push_back(image_with_subpixel_corners);
         imageVec.push_back(image_check);
