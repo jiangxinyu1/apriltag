@@ -1013,7 +1013,6 @@ int main(int argc, char *argv[])
                 id6ready = true;
             }
             
-            // 
             auto reprojection = [&]()
             {
                 Eigen::Vector3d transform_vector;
@@ -1063,7 +1062,7 @@ int main(int argc, char *argv[])
         printEstimateTagPose();
 
 
-        //  TODO: 对pose进行的检验
+        //   对pose进行的检验
         auto checkTagPose = [&]( bool optimized )
         {
             if ( id3ready && id6ready )
@@ -1096,10 +1095,10 @@ int main(int argc, char *argv[])
                 }
 
                 const std::vector<Eigen::Vector3d> real_points_{Eigen::Vector3d (-0.03,0.03,0.0), Eigen::Vector3d (0.03,0.03,0.0), Eigen::Vector3d (0.03,-0.03,0.0),
-                                                                                                    Eigen::Vector3d (-0.03,-0.03,0.0), Eigen::Vector3d (0.0,0.0,0.0),
-                                                                                                    Eigen::Vector3d (-0.02,0.02,0.0), Eigen::Vector3d (0.02,0.02,0.0), Eigen::Vector3d (0.02,-0.02,0.0),
-                                                                                                    Eigen::Vector3d (-0.02,-0.02,0.0),Eigen::Vector3d (-0.01,0.01,0.0), Eigen::Vector3d (0.01,0.01,0.0), 
-                                                                                                    Eigen::Vector3d (0.01,-0.01,0.0), Eigen::Vector3d (-0.01,-0.01,0.0)};
+                                                                                                     Eigen::Vector3d (-0.03,-0.03,0.0), Eigen::Vector3d (0.0,0.0,0.0),
+                                                                                                     Eigen::Vector3d (-0.02,0.02,0.0), Eigen::Vector3d (0.02,0.02,0.0), Eigen::Vector3d (0.02,-0.02,0.0),
+                                                                                                     Eigen::Vector3d (-0.02,-0.02,0.0),Eigen::Vector3d (-0.01,0.01,0.0), Eigen::Vector3d (0.01,0.01,0.0), 
+                                                                                                     Eigen::Vector3d (0.01,-0.01,0.0), Eigen::Vector3d (-0.01,-0.01,0.0)};
                 for (auto p : real_points_)
                 {
                     Eigen::Vector3d point_uv_r = K*(rotationMatrixTag1*p+tranVecTag1);
@@ -1111,52 +1110,58 @@ int main(int argc, char *argv[])
                 }
             }
         };
+        // 
+        checkTagPose(false);
 
-        // TODO: R1 t1 R2 t2
+        // R1 t1 R2 t2 refienment
         if ( id3ready && id6ready )
         {                
             poseOptimization(tag1_points,tag2_points,K,rotationMatrixTag1,tranVecTag1,rotationMatrixTag2,tranVecTag2);
         }
-        
-        checkTagPose(true);
 
+        checkTagPose(true);
 
         // std::cout << ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>[Time] all time = " << t8-t1<< "ms\n" << std::endl;
         apriltag_detections_destroy(detections);
         // 
-        std::string out_path0 = "/data/rgb/res_"+std::to_string(imageIndex)+".jpg";
-        SaveImage(frame,out_path0);
-        //  
-        std::string out_path1 = "/data/rgb/image_with_init_corners_"+std::to_string(imageIndex)+".jpg";
-        std::string image_with_init_corners_label = "AprilTag corner detection results";
-        writeOnImage(image_with_init_corners,cv::Point2i(660,200),image_with_init_corners_label);
-        SaveImage(image_with_init_corners,out_path1);
-        //  
-        std::string out_path2 = "/data/rgb/image_with_gftt_corners_"+std::to_string(imageIndex)+".jpg";
-        SaveImage(image_with_gftt_corners,out_path2);
-        //  保存最后优化完的角点
-        std::string out_path3 = "/data/rgb/image_with_subpixel_corners_"+std::to_string(imageIndex)+".jpg";
-        std::string image_with_subpixel_corners_label = "The result of corner optimization on the original image";
-        writeOnImage(image_with_subpixel_corners,cv::Point2i(660,200),image_with_subpixel_corners_label);
-        SaveImage(image_with_subpixel_corners,out_path3);
-        // 在检测图上打印文本
-        std::string image_check_label = "pose check";
-        writeOnImage(image_check,cv::Point2i(660,200),image_check_label);
-        // 保存去除畸变的灰度图
-        // std::string out_path_backup = "/home/xinyu/workspace/360/apriltags_tas/catkin_ws/src/apriltags_tas/apriltags_tas/example_images/"+std::to_string(imageIndex)+".jpg";
-        // SaveImage(backup_image,out_path_backup);
+        auto saveImageResult = [&]()
+        {
+            std::string out_path0 = "/data/rgb/res_"+std::to_string(imageIndex)+".jpg";
+            SaveImage(frame,out_path0);
+            //  
+            std::string out_path1 = "/data/rgb/image_with_init_corners_"+std::to_string(imageIndex)+".jpg";
+            std::string image_with_init_corners_label = "AprilTag corner detection results";
+            writeOnImage(image_with_init_corners,cv::Point2i(660,200),image_with_init_corners_label);
+            SaveImage(image_with_init_corners,out_path1);
+            //  
+            std::string out_path2 = "/data/rgb/image_with_gftt_corners_"+std::to_string(imageIndex)+".jpg";
+            SaveImage(image_with_gftt_corners,out_path2);
+            //  保存最后优化完的角点
+            std::string out_path3 = "/data/rgb/image_with_subpixel_corners_"+std::to_string(imageIndex)+".jpg";
+            std::string image_with_subpixel_corners_label = "The result of corner optimization on the original image";
+            writeOnImage(image_with_subpixel_corners,cv::Point2i(660,200),image_with_subpixel_corners_label);
+            SaveImage(image_with_subpixel_corners,out_path3);
+            // 在检测图上打印文本
+            std::string image_check_label = "pose check";
+            writeOnImage(image_check,cv::Point2i(660,200),image_check_label);
+            // 保存去除畸变的灰度图
+            // std::string out_path_backup = "/home/xinyu/workspace/360/apriltags_tas/catkin_ws/src/apriltags_tas/apriltags_tas/example_images/"+std::to_string(imageIndex)+".jpg";
+            // SaveImage(backup_image,out_path_backup);
 
-        // pinjit
-        std::vector<cv::Mat> imageVec;
-        cv::Mat combineImage;
-        imageVec.push_back(image_with_init_corners);
-        // imageVec.push_back(image_with_gftt_corners);
-        imageVec.push_back(image_with_subpixel_corners);
-        imageVec.push_back(image_check);
-        // imageVec.push_back(image_raw);
-        cv::vconcat(imageVec,combineImage);
-        std::string out_path4 = "/data/rgb/combineImage_"+std::to_string(imageIndex)+".jpg";
-        SaveImage(combineImage,out_path4);
+            // combine
+            std::vector<cv::Mat> imageVec;
+            cv::Mat combineImage;
+            imageVec.push_back(image_with_init_corners);
+            // imageVec.push_back(image_with_gftt_corners);
+            imageVec.push_back(image_with_subpixel_corners);
+            imageVec.push_back(image_check);
+            // imageVec.push_back(image_raw);
+            cv::vconcat(imageVec,combineImage);
+            std::string out_path4 = "/data/rgb/combineImage_"+std::to_string(imageIndex)+".jpg";
+            SaveImage(combineImage,out_path4);
+        };
+        saveImageResult();
+
 
     } // for image
 
