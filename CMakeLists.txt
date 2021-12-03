@@ -7,8 +7,8 @@ option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 set(default_build_type "Release")
 
 
-# set(Thirdparty_DIR ~/cleanRobot/thirdparty)
-# set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${Thirdparty_DIR}/CMakeModules")
+set(Thirdparty_DIR ~/cleanRobot/thirdparty)
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${Thirdparty_DIR}/CMakeModules")
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     message(STATUS "Setting build type to '${default_build_type}' as none was specified.")
@@ -146,16 +146,25 @@ endif (NOT Python3_NOT_FOUND AND NOT Numpy_NOT_FOUND AND PYTHONLIBS_FOUND AND BU
 # directory of opencv library
 
 
-
 find_package(OpenCV REQUIRED)
-find_package(Ceres REQUIRED)
+# find_package(Ceres REQUIRED)
+
+include_directories(${CERES_INCLUDE_DIRS})
 
 INCLUDE_DIRECTORIES(
     ${OpenCV_INCLUDE_DIRS}
     ${PROJECT_SOURCE_DIR}/src/thirdParty
-    ${Thirdparty_DIR}/include    
+    ${PROJECT_SOURCE_DIR}
+    ${Thirdparty_DIR}/include
     ${Thirdparty_DIR}/include/opencv2
-    ${CERES_INCLUDE_DIRS}
+    ${PROJECT_SOURCE_DIR}/example
+    ${PROJECT_SOURCE_DIR}/example/ceres
+    ${PROJECT_SOURCE_DIR}/example/ceres/internal
+    ${PROJECT_SOURCE_DIR}/example/internal
+    ${PROJECT_SOURCE_DIR}/example/internal/miniglog
+    ${PROJECT_SOURCE_DIR}/example/internal/ceres/miniglog/
+    # onPc
+    # ${CERES_INCLUDE_DIRS}
 )
 
 
@@ -172,7 +181,7 @@ link_directories(${OpenCV_LIBRARY_DIRS})
 # find_package(OpenCV COMPONENTS core imgproc videoio highgui QUIET)
 if(OpenCV_FOUND)
     add_executable(opencv_demo example/opencv_demo.cc)
-    target_link_libraries(opencv_demo apriltag ${OpenCV_LIBS} ${CERES_LIBRARIES})
+    target_link_libraries(opencv_demo apriltag ${OpenCV_LIBS} ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/example/libceres.a)
     set_target_properties(opencv_demo PROPERTIES CXX_STANDARD 11)
     install(TARGETS opencv_demo RUNTIME DESTINATION bin)
 else()

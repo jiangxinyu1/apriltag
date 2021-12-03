@@ -35,9 +35,10 @@ either expressed or implied, of the Regents of The University of Michigan.
 #include "opencv2/highgui.hpp"
 #include <Eigen/Core>
 #include <Eigen/Geometry>
-#include <ceres/ceres.h>
-#include "ceres/autodiff_cost_function.h"
+
+#include "ceres/ceres.h"
 #include "ceres/local_parameterization.h"
+#include "ceres/autodiff_cost_function.h"
 
 extern "C" {
 #include "apriltag.h"
@@ -65,6 +66,8 @@ using ceres::AutoDiffCostFunction;
 using ceres::Problem;
 using ceres::Solve;
 using ceres::Solver;
+
+#define TIME_STATISTICS
 
 
 class distortedCostFunctor{
@@ -584,12 +587,13 @@ void  imagePreprocess( cv::Mat &rgbImageRaw , cv::Mat & frame, std::vector<std::
         // cv::pyrDown(rgbImage,newFrame,cv::Size(cols/2,rows/2));
         // 4 对RGB图像去畸变
         cv::Mat frame1 = cv::Mat(newFrame.rows, newFrame.cols, CV_8UC1);   // 去畸变以后的图
-        myImageDistorted(newFrame,frame1,distortLookupTable);
+        // myImageDistorted(newFrame,frame1,distortLookupTable);
         //  5 直方图均衡化
         // cv::equalizeHist(frame1,frame);
         // 6   RGB转成灰度图  
         // cvtColor(frame, gray, COLOR_BGR2GRAY);
-        frame = frame1.clone();
+        // frame = frame1.clone();
+        frame = newFrame.clone();
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -701,18 +705,19 @@ void refinementCornersOnRawImage( const std::vector<cv::Point2f> &corners, const
     cv::Mat im = frame.clone();
     // 1 转回到原始图像上
     std::vector<cv::Point2f> corners_on_raw;
-    for ( int i = 0 ; i < 4; i ++ )
-    {
-        auto x1 = (corners[i].x - cx)/fx;
-        auto y1 = (corners[i].y - cy)/fy;
-        double r2;
-        //  由畸变参数计算每个点发生畸变后在归一化平面的对应坐标 (x_distorted,y_distorted)
-        r2 = pow(x1,2)+pow(y1,2);
-        auto x_distorted  = x1*(1+k1*r2+k2*pow(r2,2)+k3*pow(r2,3))+2*p1*x1*y1+p2*(r2+2*x1*x1);
-        auto y_distorted = y1*(1+k1*r2+k2*pow(r2,2)+k3*pow(r2,3))+p1*(r2+2*y1*y1)+2*p2*x1*y1;
-        //  将畸变后的点由内参矩阵投影到像素平面,得到该点在输入的带有畸变图像上的位置
-        corners_on_raw.emplace_back(cv::Point2f(fx*x_distorted+cx,fy*y_distorted+cy));
-    }
+    // for ( int i = 0 ; i < 4; i ++ )
+    // {
+    //     auto x1 = (corners[i].x - cx)/fx;
+    //     auto y1 = (corners[i].y - cy)/fy;
+    //     double r2;
+    //     //  由畸变参数计算每个点发生畸变后在归一化平面的对应坐标 (x_distorted,y_distorted)
+    //     r2 = pow(x1,2)+pow(y1,2);
+    //     auto x_distorted  = x1*(1+k1*r2+k2*pow(r2,2)+k3*pow(r2,3))+2*p1*x1*y1+p2*(r2+2*x1*x1);
+    //     auto y_distorted = y1*(1+k1*r2+k2*pow(r2,2)+k3*pow(r2,3))+p1*(r2+2*y1*y1)+2*p2*x1*y1;
+    //     //  将畸变后的点由内参矩阵投影到像素平面,得到该点在输入的带有畸变图像上的位置
+    //     corners_on_raw.emplace_back(cv::Point2f(fx*x_distorted+cx,fy*y_distorted+cy));
+    // }
+    corners_on_raw = corners;
     // 2 在原始图像上计算亚像素的角点
     std::vector<cv::Point2f> corners_on_raw_after_gftt;
     refinementCornerWithGFTT(raw_im,corners_on_raw,corners_on_raw_after_gftt);
@@ -821,11 +826,16 @@ int main(int argc, char *argv[])
     Mat frame,rgbImageRaw;
     cv::Mat backup_image; // 用于保存预处理后的图像
     const int testNumber = 10;
+
     for ( int imageIndex = 1 ; imageIndex < testNumber; imageIndex++)
     {
         std::cout << "\n<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< NEW IMAGE <<<<<<<<<<<<<<<<<<< diatance = "<< imageIndex*10 <<"cm \n";
         //  1 循环读取YUV将其转成GRAY
         std::string new_path = "/data/rgb/"+std::to_string(imageIndex)+".yuv";
+
+#ifdef TIME_STATISTICS
+    auto  imagePreprocess_startTime = getTime();
+#endif 
 
         YUV4202GRAY_CV_SAVE(new_path,rgbImageRaw,1920,1080);
 
@@ -834,7 +844,13 @@ int main(int argc, char *argv[])
 
         imagePreprocess(rgbImageRaw,frame,distortLookupTable);
 
-        // backup_image = frame.clone();
+#ifdef TIME_STATISTICS
+    auto  imagePreprocess_endTime = getTime();
+    std::cout << "[Time] Step 1 :  imagePreprocess_Time =  " << imagePreprocess_endTime - imagePreprocess_startTime << "\n";
+#endif 
+
+
+        backup_image = frame.clone();
 
         // Make an image_u8_t header for the Mat data
         image_u8_t im = 
@@ -845,9 +861,18 @@ int main(int argc, char *argv[])
             .buf = frame.data
         };
 
+#ifdef TIME_STATISTICS
+    auto  apriltagDetect_startTime = getTime();
+#endif
+
         // 检测tag，并计算H  
         zarray_t *detections = apriltag_detector_detect(td, &im);
         
+#ifdef TIME_STATISTICS
+    auto  apriltagDetect_endTime = getTime();
+    std::cout << "[Time] Step 2:  apriltagDetect_Time =  " << apriltagDetect_endTime - apriltagDetect_startTime << "\n";
+#endif
+
         Eigen::Vector3d rotation_z_3;
         Eigen::Vector3d rotation_z_6;
         bool id3ready = false , id6ready =false;
@@ -871,7 +896,7 @@ int main(int argc, char *argv[])
             apriltag_detection_t *det;
             zarray_get(detections, i, &det);
 
-            if (det->id != 3 && det->id != 6)
+            if ((det->id != 3 && det->id != 6) || det->decision_margin < 10)
             {
                 continue;
             }
@@ -910,8 +935,18 @@ int main(int argc, char *argv[])
             std::vector<cv::Point2f> corners_after_subpixel;
             refinementCornerWithSubPixel(frame,corners_after_gftt,corners_after_subpixel);
 #endif
+
+#ifdef TIME_STATISTICS
+    auto  refinementCornersOnRawImage_startTime = getTime();
+#endif
+
             std::vector<cv::Point2f> corners_after_refinementOnRawImage;
             refinementCornersOnRawImage(corners,rawImageFor,frame,corners_after_refinementOnRawImage);
+
+#ifdef TIME_STATISTICS
+    auto  refinementCornersOnRawImage_endTime = getTime();
+    std::cout << "[Time] Step 3-1:  refinementCornersOnRawImage_Time =  " << refinementCornersOnRawImage_endTime - refinementCornersOnRawImage_startTime << "\n";
+#endif
 
             //  确定最终的角点
             std::vector<cv::Point2f> corners_final;
@@ -946,7 +981,6 @@ int main(int argc, char *argv[])
             };
             updateDetwithNewCorners();
 
-
             line(frame, Point(det->p[0][0], det->p[0][1]),
                      Point(det->p[1][0], det->p[1][1]),
                      Scalar(0, 0xff, 0), 2);
@@ -969,6 +1003,10 @@ int main(int argc, char *argv[])
             Size textsize = getTextSize(text, fontface, fontscale, 2,&baseline);
             putText(frame, text, Point(det->c[0]-textsize.width/2,det->c[1]+textsize.height/2),fontface, fontscale, Scalar(0xff, 0x99, 0), 2);
 
+
+#ifdef TIME_STATISTICS
+    auto  estimate_tag_pose_startTime = getTime();
+#endif
             //  3 estimate_tag_pose
             // First create an apriltag_detection_info_t struct using your known parameters.
             apriltag_detection_info_t info;
@@ -985,6 +1023,12 @@ int main(int argc, char *argv[])
 
             // 将位姿估计的结果整理成旋转矩阵
             rotation_matrix << pose.R->data[0],pose.R->data[1],pose.R->data[2],pose.R->data[3],pose.R->data[4],pose.R->data[5],pose.R->data[6],pose.R->data[7],pose.R->data[8];
+
+#ifdef TIME_STATISTICS
+    auto  estimate_tag_pose_endTime = getTime();
+    std::cout << "[Time] Step 3-2:  estimate_tag_pose_endTime =  " << estimate_tag_pose_endTime - estimate_tag_pose_startTime << "\n";
+#endif
+
 
             if ( det->id == 3 )
             {
@@ -1065,6 +1109,7 @@ int main(int argc, char *argv[])
         //   对pose进行的检验
         auto checkTagPose = [&]( bool optimized )
         {
+            myImageDistorted(backup_image,image_check,distortLookupTable);
             if ( id3ready && id6ready )
             {
                 Eigen::Vector3d pointTagTest(0.105,0.051,-0.25);
@@ -1111,13 +1156,28 @@ int main(int argc, char *argv[])
             }
         };
         // 
-        checkTagPose(false);
+        // checkTagPose(false);
+
+#ifdef TIME_STATISTICS
+    auto  poseOptimization_startTime = getTime();
+#endif
 
         // R1 t1 R2 t2 refienment
         if ( id3ready && id6ready )
         {                
             poseOptimization(tag1_points,tag2_points,K,rotationMatrixTag1,tranVecTag1,rotationMatrixTag2,tranVecTag2);
         }
+
+#ifdef TIME_STATISTICS
+    auto  poseOptimization_endTime = getTime();
+    std::cout << "[Time] Step 4:  poseOptimization_Time =  " << poseOptimization_endTime - poseOptimization_startTime << "\n";
+#endif
+
+
+#ifdef TIME_STATISTICS
+    auto  image_endTime = getTime();
+    std::cout << "[Time]  ALL  Time  :  =  " << image_endTime - imagePreprocess_startTime << "\n";
+#endif 
 
         checkTagPose(true);
 
