@@ -70,6 +70,22 @@ using ceres::Solver;
 #define TIME_STATISTICS
 
 
+const double tagCenterDistance = 0.21;
+const double tagCenterHeight = 0.052;
+const double pointZ = 0.25;
+// 畸变参数
+// const double k1 =-0.338011, k2 = 0.130450, p1 = 0.000287, p2 =0.000001 ,k3=  -0.024906;
+// // 内参 
+// const double fx = 934.166126, fy = 935.122766, cx = 960.504061-300, cy =  562.707915-200;
+
+// const double tagCenterDistance = 0.204;
+// const double tagCenterHeight = 0.065;
+// const double pointZ = 0.40;
+
+const double k1 =-0.337591, k2 = 0.125105, p1 = 0.000421416, p2 =-0.000218274,k3=  -0.0220246;
+const double fx = 942.296, fy = 934.14, cx = 967.549-300, cy =  562.393-200;
+
+
 class distortedCostFunctor{
 public:
     distortedCostFunctor(cv::Point2d &point_distortion,const Eigen::Matrix3d& KMat) : point_distortion_(point_distortion),KMat_(KMat){}
@@ -77,7 +93,6 @@ public:
     template <typename T>
     bool operator() (const T* const point, T* residual) const 
     {
-        double k1 =-0.338011, k2 = 0.130450, p1 = 0.000287, p2 = 0.000001 ,k3= -0.024906;
         T x1 = point[0];
         T y1 = point[1];
         T r2 =x1*x1+y1*y1;
@@ -163,7 +178,7 @@ public:
         //  4  两个tag系中心之间的距离
         T r4;
         // r4 = ((t2-t1).transpose()*(t2-t1)).norm()-(0.21*0.21);
-        r4 = (t2-t1).norm() - 0.21;
+        r4 = (t2-t1).norm() - tagCenterDistance;
         T r5;
         Eigen::Matrix<T,1,1> e_y = (t1-t2).transpose()*Eigen::Vector3d(0,1,0);
         r5 = e_y.transpose()*e_y;
@@ -282,9 +297,9 @@ void homography_compute3(double c[4][4] , Eigen::Matrix3d &H)
 void preBuildDistortedLookupTable(std::vector<std::vector<distortion_uv >> &lookupTable,const int width, const int height)
 {
     // 畸变参数
-    double k1 =-0.338011, k2 = 0.130450, p1 = 0.000287, p2 =0.000001 ,k3=  -0.024906;
-    // 内参 
-    double fx = 934.166126/2, fy = 935.122766/2, cx = 1360/2/2, cy =  680/2/2;
+    // double k1 =-0.338011, k2 = 0.130450, p1 = 0.000287, p2 =0.000001 ,k3=  -0.024906;
+    // // 内参 
+    // double fx = 934.166126/2, fy = 935.122766/2, cx = 1360/2/2, cy =  680/2/2;
     // 初始化
     std::vector<distortion_uv> rows_(width);
     lookupTable.resize(height,rows_);
@@ -317,9 +332,9 @@ void preBuildDistortedLookupTable(std::vector<std::vector<distortion_uv >> &look
 void preBuildDistortedLookupTable(std::vector<std::vector<distortion_uv_4>> &lookupTable,const int width, const int height)
 {
     // 畸变参数
-    double k1 =-0.338011, k2 = 0.130450, p1 = 0.000287, p2 =0.000001 ,k3=  -0.024906;
-    // 内参 
-    double fx = 934.166126, fy = 935.122766, cx = 960.504061-300, cy =  562.707915-200;
+    // double k1 =-0.338011, k2 = 0.130450, p1 = 0.000287, p2 =0.000001 ,k3=  -0.024906;
+    // // 内参 
+    // double fx = 934.166126, fy = 935.122766, cx = 960.504061-300, cy =  562.707915-200;
     // 初始化
     std::vector<distortion_uv_4> rows_(width);
     lookupTable.resize(height,rows_);
@@ -364,10 +379,12 @@ int64_t getTime()
 void YUV4202GRAY_CV_SAVE(std::string &inputPath ,cv::Mat&grayImg,int width,int height)
 {
     FILE* pFileIn = fopen(inputPath.data(),"rb+");
+    // FILE* pFileOut = fopen(outputPath.data(),"rb+");
     unsigned char* data = (unsigned char*) malloc(width*height*3/2);
     auto size_ = fread(data,height*width*sizeof(unsigned char),1,pFileIn);
 	grayImg.create(height,width, CV_8UC1);
     memcpy(grayImg.data, data, height*width*sizeof(unsigned char));
+    // fwrite(data.c_str(), 1, data.size(), pFileOut);
     free(data);
     fclose(pFileIn);
 }
@@ -424,9 +441,9 @@ void myImageDistorted(cv::Mat &src , cv::Mat &image_undistort,const std::vector<
 void myImageDistorted(cv::Mat &src , cv::Mat &image_undistort)
 {
     // 畸变参数
-    double k1 =-0.338011, k2 = 0.130450, p1 = 0.000287, p2 =0.000001 ,k3=  -0.024906;
-    // 内参
-    double fx = 934.166126/2, fy = 935.122766/2, cx = 1360/2/2, cy =  680/2/2;
+    // double k1 =-0.338011, k2 = 0.130450, p1 = 0.000287, p2 =0.000001 ,k3=  -0.024906;
+    // // 内参
+    // double fx = 934.166126/2, fy = 935.122766/2, cx = 1360/2/2, cy =  680/2/2;
 
     cv::Mat image = src;
     int rows = src.rows, cols = src.cols;
@@ -587,13 +604,13 @@ void  imagePreprocess( cv::Mat &rgbImageRaw , cv::Mat & frame, std::vector<std::
         // cv::pyrDown(rgbImage,newFrame,cv::Size(cols/2,rows/2));
         // 4 对RGB图像去畸变
         cv::Mat frame1 = cv::Mat(newFrame.rows, newFrame.cols, CV_8UC1);   // 去畸变以后的图
-        // myImageDistorted(newFrame,frame1,distortLookupTable);
+        myImageDistorted(newFrame,frame1,distortLookupTable);
         //  5 直方图均衡化
         // cv::equalizeHist(frame1,frame);
         // 6   RGB转成灰度图  
-        // cvtColor(frame, gray, COLOR_BGR2GRAY);
-        // frame = frame1.clone();
-        frame = newFrame.clone();
+        // cvtColor(frame1, frame, COLOR_BGR2GRAY);
+        frame = frame1.clone();
+        // frame = newFrame.clone();
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -620,11 +637,10 @@ void refinementCornerWithGFTT(const cv::Mat &frame, const std::vector<cv::Point2
         cv::cornerMinEigenVal(tmpMat,cornerMinValueMat,3,3,4); // sobel 算子的size 3*3
         cornersMinValuesMatVec.push_back(cornerMinValueMat);
     }
-    // 遍历每个角点周围的11*11响应矩阵，在5*5范围内找最大的最小特征值（像素坐标）
-    int count = 0;
-    
+    // 遍历每个角点周围的11*11响应矩阵，            corners_after_refinementOnRawImage = corners;
     corners_after_gftt.resize(4);
     corners_after_gftt = corners;
+    int count =0;
     for ( auto mat : cornersMinValuesMatVec)
     {
         auto currentSelect = cv::Rect(halfWindowSize-halfSmallWindowSize,halfWindowSize-halfSmallWindowSize,2*halfSmallWindowSize+1,2*halfSmallWindowSize+1);
@@ -696,28 +712,28 @@ void computeHomographyWithCorners( const std::vector<cv::Point2f> &corners_final
 void refinementCornersOnRawImage( const std::vector<cv::Point2f> &corners, const cv::Mat &rawImage, const cv::Mat &frame ,std::vector<cv::Point2f> &new_corners)
 {
     // 畸变参数
-    double k1 =-0.338011, k2 = 0.130450, p1 = 0.000287, p2 =0.000001 ,k3=  -0.024906;
-    // 内参 
-    double fx = 934.166126, fy = 935.122766, cx = 960.504061-300, cy =  562.707915-200;
+    // double k1 =-0.338011, k2 = 0.130450, p1 = 0.000287, p2 =0.000001 ,k3=  -0.024906;
+    // // 内参 
+    // double fx = 934.166126, fy = 935.122766, cx = 960.504061-300, cy =  562.707915-200;
     Eigen::Matrix3d cameraK;
     cameraK << fx,0,cx,0,fy,cy,0,0,1;
     cv::Mat raw_im = rawImage.clone();
     cv::Mat im = frame.clone();
     // 1 转回到原始图像上
     std::vector<cv::Point2f> corners_on_raw;
-    // for ( int i = 0 ; i < 4; i ++ )
-    // {
-    //     auto x1 = (corners[i].x - cx)/fx;
-    //     auto y1 = (corners[i].y - cy)/fy;
-    //     double r2;
-    //     //  由畸变参数计算每个点发生畸变后在归一化平面的对应坐标 (x_distorted,y_distorted)
-    //     r2 = pow(x1,2)+pow(y1,2);
-    //     auto x_distorted  = x1*(1+k1*r2+k2*pow(r2,2)+k3*pow(r2,3))+2*p1*x1*y1+p2*(r2+2*x1*x1);
-    //     auto y_distorted = y1*(1+k1*r2+k2*pow(r2,2)+k3*pow(r2,3))+p1*(r2+2*y1*y1)+2*p2*x1*y1;
-    //     //  将畸变后的点由内参矩阵投影到像素平面,得到该点在输入的带有畸变图像上的位置
-    //     corners_on_raw.emplace_back(cv::Point2f(fx*x_distorted+cx,fy*y_distorted+cy));
-    // }
-    corners_on_raw = corners;
+    for ( int i = 0 ; i < 4; i ++ )
+    {
+        auto x1 = (corners[i].x - cx)/fx;
+        auto y1 = (corners[i].y - cy)/fy;
+        double r2;
+        //  由畸变参数计算每个点发生畸变后在归一化平面的对应坐标 (x_distorted,y_distorted)
+        r2 = pow(x1,2)+pow(y1,2);
+        auto x_distorted  = x1*(1+k1*r2+k2*pow(r2,2)+k3*pow(r2,3))+2*p1*x1*y1+p2*(r2+2*x1*x1);
+        auto y_distorted = y1*(1+k1*r2+k2*pow(r2,2)+k3*pow(r2,3))+p1*(r2+2*y1*y1)+2*p2*x1*y1;
+        //  将畸变后的点由内参矩阵投影到像素平面,得到该点在输入的带有畸变图像上的位置
+        corners_on_raw.emplace_back(cv::Point2f(fx*x_distorted+cx,fy*y_distorted+cy));
+    }
+    // corners_on_raw = corners;
     // 2 在原始图像上计算亚像素的角点
     std::vector<cv::Point2f> corners_on_raw_after_gftt;
     refinementCornerWithGFTT(raw_im,corners_on_raw,corners_on_raw_after_gftt);
@@ -729,7 +745,6 @@ void refinementCornersOnRawImage( const std::vector<cv::Point2f> &corners, const
         double x_distortion = (corners_on_raw_after_subpixel[j].x - cx)/fx;
         double y_distortion = (corners_on_raw_after_subpixel[j].y - cy)/fy;
         double point[2];
-        // todo : 完善一下初值
         point[0] = x_distortion;
         point[1] = y_distortion;
         std::cout << "[Before]" << point[0] << "," <<point[1] << "\n";
@@ -740,7 +755,7 @@ void refinementCornersOnRawImage( const std::vector<cv::Point2f> &corners, const
         problem.AddResidualBlock(new AutoDiffCostFunction<distortedCostFunctor,2,2> (Cost_functor), loss_function,point);
         ceres::Solver::Options solver_options;//实例化求解器对象    
         solver_options.linear_solver_type=ceres::DENSE_QR;
-        solver_options.minimizer_progress_to_stdout= true;
+        solver_options.minimizer_progress_to_stdout= false;
         //实例化求解对象
         ceres::Solver::Summary summary;
         ceres::Solve(solver_options,&problem,&summary);
@@ -825,20 +840,20 @@ int main(int argc, char *argv[])
     // 
     Mat frame,rgbImageRaw;
     cv::Mat backup_image; // 用于保存预处理后的图像
-    const int testNumber = 10;
+    const int testNumber = 20;
 
     for ( int imageIndex = 1 ; imageIndex < testNumber; imageIndex++)
     {
         std::cout << "\n<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< NEW IMAGE <<<<<<<<<<<<<<<<<<< diatance = "<< imageIndex*10 <<"cm \n";
         //  1 循环读取YUV将其转成GRAY
-        std::string new_path = "/data/rgb/"+std::to_string(imageIndex)+".yuv";
+        std::string new_path = "/data/test56_new/"+std::to_string(imageIndex)+".yuv";
 
 #ifdef TIME_STATISTICS
     auto  imagePreprocess_startTime = getTime();
 #endif 
 
         YUV4202GRAY_CV_SAVE(new_path,rgbImageRaw,1920,1080);
-
+        
         auto my_select = cv::Rect(300,200,1320,680);
         cv::Mat rawImageFor = rgbImageRaw(my_select);
 
@@ -848,7 +863,6 @@ int main(int argc, char *argv[])
     auto  imagePreprocess_endTime = getTime();
     std::cout << "[Time] Step 1 :  imagePreprocess_Time =  " << imagePreprocess_endTime - imagePreprocess_startTime << "\n";
 #endif 
-
 
         backup_image = frame.clone();
 
@@ -896,7 +910,7 @@ int main(int argc, char *argv[])
             apriltag_detection_t *det;
             zarray_get(detections, i, &det);
 
-            if ((det->id != 3 && det->id != 6) || det->decision_margin < 10)
+            if ((det->id != 3 && det->id != 6))
             {
                 continue;
             }
@@ -911,7 +925,6 @@ int main(int argc, char *argv[])
                 {
                     cv::Point2f tmp(det->p[i][0],det->p[i][1]);
                     corners[i] = tmp;
-                    
                 }
                 if (0)
                 {
@@ -1012,10 +1025,10 @@ int main(int argc, char *argv[])
             apriltag_detection_info_t info;
             info.det = det;
             info.tagsize = 0.06;
-            info.fx = 934.166126;
-            info.fy = 935.122766;
-            info.cx = (960.504061-300);
-            info.cy = (562.707915-200);
+            info.fx =  fx;
+            info.fy =  fy;
+            info.cx = cx;
+            info.cy = cy;
             K << info.fx,0,info.cx,0,info.fy,info.cy,0,0,1;
             // Then call estimate_tag_pose.
             apriltag_pose_t pose;
@@ -1109,11 +1122,12 @@ int main(int argc, char *argv[])
         //   对pose进行的检验
         auto checkTagPose = [&]( bool optimized )
         {
-            myImageDistorted(backup_image,image_check,distortLookupTable);
+            // myImageDistorted(backup_image,image_check,distortLookupTable);
+
             if ( id3ready && id6ready )
             {
-                Eigen::Vector3d pointTagTest(0.105,0.051,-0.25);
-                Eigen::Vector3d pointTagTest_(-0.105,0.051,-0.25);
+                Eigen::Vector3d pointTagTest(tagCenterDistance/2,tagCenterHeight,-pointZ);
+                Eigen::Vector3d pointTagTest_(-tagCenterDistance/2,tagCenterHeight,-pointZ);
                 Eigen::Vector3d pointTagTest1 = (rotationMatrixTag2*pointTagTest+tranVecTag2);
                 Eigen::Vector3d pointTagTest2 = (rotationMatrixTag1*pointTagTest_+tranVecTag1);
                 Eigen::Vector3d point_uv_1 = K*pointTagTest1;
@@ -1136,9 +1150,13 @@ int main(int argc, char *argv[])
                     cv::rectangle(image_check, rect, Scalar(0, 255, 0),1, LINE_8,0);
                 }else{
                     image_check.at<uint8_t>(std::round(point_uv_2[1]/point_uv_2[2]),std::round(point_uv_2[0]/point_uv_2[2])) = 255;
-                    cv::circle(image_check, cv::Point(point_uv_2[0]/point_uv_2[2],point_uv_2[1]/point_uv_2[2]), 5, cv::Scalar(0, 255, 0), 2, 8, 0);
+                    cv::circle(image_check, cv::Point(point_uv_2[0]/point_uv_2[2],point_uv_2[1]/point_uv_2[2]), 8, cv::Scalar(0, 255, 0), 2, 8, 0);
                 }
 
+                if (optimized)
+                {
+                    return;
+                }
                 const std::vector<Eigen::Vector3d> real_points_{Eigen::Vector3d (-0.03,0.03,0.0), Eigen::Vector3d (0.03,0.03,0.0), Eigen::Vector3d (0.03,-0.03,0.0),
                                                                                                      Eigen::Vector3d (-0.03,-0.03,0.0), Eigen::Vector3d (0.0,0.0,0.0),
                                                                                                      Eigen::Vector3d (-0.02,0.02,0.0), Eigen::Vector3d (0.02,0.02,0.0), Eigen::Vector3d (0.02,-0.02,0.0),
@@ -1156,7 +1174,7 @@ int main(int argc, char *argv[])
             }
         };
         // 
-        // checkTagPose(false);
+        checkTagPose(false);
 
 #ifdef TIME_STATISTICS
     auto  poseOptimization_startTime = getTime();
