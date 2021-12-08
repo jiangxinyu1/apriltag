@@ -68,24 +68,56 @@ using ceres::Solve;
 using ceres::Solver;
 
 #define TIME_STATISTICS
+#define USE_TAG_BOARD
+// #define USE_CHARGE_TAG
 
 
+#ifdef USE_TAG_BOARD
 const double tagCenterDistance = 0.21;
 const double tagCenterHeight = 0.052;
 const double pointZ = 0.25;
-// 畸变参数
-// const double k1 =-0.338011, k2 = 0.130450, p1 = 0.000287, p2 =0.000001 ,k3=  -0.024906;
-// // 内参 
-// const double fx = 934.166126, fy = 935.122766, cx = 960.504061-300, cy =  562.707915-200;
+#endif // USE_TAG_BOARD
 
-// const double tagCenterDistance = 0.204;
-// const double tagCenterHeight = 0.065;
-// const double pointZ = 0.40;
+#ifdef USE_CHARGE_TAG
+const double tagCenterDistance = 0.204;
+const double tagCenterHeight = 0.065;
+const double pointZ = 0.40;
+#endif // USE_CHARGE_TAG
+
+
+// const double k1 =-0.338011, k2 = 0.130450, p1 = 0.000287, p2 =0.000001 ,k3=  -0.024906;
+// const double fx = 934.166126, fy = 935.122766, cx = 960.504061-300, cy =  562.707915-200;
 
 const double k1 =-0.337591, k2 = 0.125105, p1 = 0.000421416, p2 =-0.000218274,k3=  -0.0220246;
 const double fx = 942.296, fy = 934.14, cx = 967.549-300, cy =  562.393-200;
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+class ReprojectCostFunctor{
+public:
+    ReprojectCostFunctor(const Eigen::Vector3d& tag_point,const Eigen::Vector3d& real_point, const Eigen::Matrix3d& KMat) : 
+                                          tag_point_(tag_point),real_point_(real_point),KMat_(KMat){}
 
+    template <typename T>
+    bool operator() (const T* const q,const T* const t, T* residual) const 
+    {
+        Eigen::Map<const Eigen::Matrix<T, 3, 1>> t_(t);
+        Eigen::Map<const Eigen::Quaternion<T>> quaternion1(q);
+        Eigen::Matrix<T,3,3> R_ = quaternion1.toRotationMatrix();
+        Eigen::Matrix<T,3,1> tmp1;
+        tmp1= KMat_*(R_* real_point_ + t_);
+        residual[0] = tag_point_[0]  - tmp1(0,0)/tmp1(2,0);
+        residual[1]= tag_point_[1] - tmp1(1,0)/tmp1(2,0);
+        return true;
+    } // operator ()
+
+private:
+    Eigen::Vector3d tag_point_;
+    Eigen::Vector3d real_point_;
+    Eigen::Matrix3d KMat_;
+};
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class distortedCostFunctor{
 public:
     distortedCostFunctor(cv::Point2d &point_distortion,const Eigen::Matrix3d& KMat) : point_distortion_(point_distortion),KMat_(KMat){}
@@ -230,7 +262,8 @@ void myImageDistorted(cv::Mat &src , cv::Mat &image_undistort,const std::vector<
 cv::Mat ComputeH(const vector<cv::Point2f> &vP1, const vector<cv::Point2f> &vP2);
 void homography_compute3(double c[4][4] , Eigen::Matrix3d &H);
 void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points, const std::vector<Eigen::Vector3d>& tag2_points,
-                                         const Eigen::Matrix3d &K, Eigen::Matrix3d & R1, Eigen::Vector3d & t1, Eigen::Matrix3d & R2, Eigen::Vector3d & t2 );                                             
+                                         const Eigen::Matrix3d &K, Eigen::Matrix3d & R1, Eigen::Vector3d & t1, Eigen::Matrix3d & R2, Eigen::Vector3d & t2 );
+void singleTagPoseOptimization(const std::vector<Eigen::Vector3d>& tag1_points,  const Eigen::Matrix3d &K, Eigen::Matrix3d & R1, Eigen::Vector3d & t1);                      
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void homography_compute3(double c[4][4] , Eigen::Matrix3d &H) 
@@ -586,6 +619,46 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points,
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void singleTagPoseOptimization(const std::vector<Eigen::Vector3d>& tag1_points,  const Eigen::Matrix3d &K, Eigen::Matrix3d & R1, Eigen::Vector3d & t1)
+{
+    const std::vector<Eigen::Vector3d> real_points{ Eigen::Vector3d (-0.03,0.03,0.0), Eigen::Vector3d (0.03,0.03,0.0), Eigen::Vector3d (0.03,-0.03,0.0),
+                                                                                        Eigen::Vector3d (-0.03,-0.03,0.0), Eigen::Vector3d (0.0,0.0,0.0)};
+    std::cout << "[Before] t1  = \n" << t1[0] << "," <<t1[1] << "," << t1[2]<< std::endl;                                                                          
+
+    // 旋转矩阵转成四元数
+    Eigen::Quaterniond quaternion1(R1);
+    // Build the problem.
+    ceres::Problem problem;
+    // ceres::LossFunction* loss_function = new ceres::CauchyLoss(1);
+    ceres::LossFunction* loss_function = NULL;
+    ceres::LocalParameterization* quaternion_local_parameterization = new ceres::EigenQuaternionParameterization;
+
+    for(int i = 0 ; i < 5; i++)
+    {
+        ReprojectCostFunctor *Cost_functor = new ReprojectCostFunctor (tag1_points[i],real_points[i],K);
+        problem.AddResidualBlock( new AutoDiffCostFunction<ReprojectCostFunctor,2,4,3> (Cost_functor), loss_function,
+                                                         quaternion1.coeffs().data(),t1.data());
+        problem.SetParameterization(quaternion1.coeffs().data(), quaternion_local_parameterization);
+    }
+
+    // Solve
+    ceres::Solver::Options solver_options;//实例化求解器对象    
+    solver_options.linear_solver_type=ceres::DENSE_QR;
+    solver_options.minimizer_progress_to_stdout= false;
+    //实例化求解对象
+    ceres::Solver::Summary summary;
+    ceres::Solve(solver_options,&problem,&summary);
+
+    // print result
+    R1 = quaternion1.toRotationMatrix();
+    // std::cout << "R1.transpose()*R1 = \n" << (R1.transpose()*R1) << std::endl;
+    std::cout << "[AFTER] t1  = \n" << t1[0] << "," <<t1[1] << "," << t1[2]<< std::endl;
+    // std::cout << summary.FullReport() << '\n';
+}
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
  * @brief 
  * 
@@ -912,6 +985,7 @@ int main(int argc, char *argv[])
 
             if ((det->id != 3 && det->id != 6))
             {
+
                 continue;
             }
             // 
@@ -1179,10 +1253,18 @@ int main(int argc, char *argv[])
 #ifdef TIME_STATISTICS
     auto  poseOptimization_startTime = getTime();
 #endif
+        
 
         // R1 t1 R2 t2 refienment
         if ( id3ready && id6ready )
-        {                
+        {       
+            // 单独对R1和t1做优化
+            singleTagPoseOptimization(tag1_points,K,rotationMatrixTag1,tranVecTag1);
+            
+            // 单独对R2和t2做优化
+            singleTagPoseOptimization(tag2_points,K,rotationMatrixTag2,tranVecTag2);
+
+            // T1 T2 联合优化
             poseOptimization(tag1_points,tag2_points,K,rotationMatrixTag1,tranVecTag1,rotationMatrixTag2,tranVecTag2);
         }
 
