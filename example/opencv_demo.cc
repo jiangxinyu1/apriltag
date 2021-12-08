@@ -74,7 +74,7 @@ using ceres::Solver;
 
 #ifdef USE_TAG_BOARD
 const double tagCenterDistance = 0.21;
-const double tagCenterHeight = 0.052;
+const double tagCenterHeight = 0.051;
 const double pointZ = 0.25;
 #endif // USE_TAG_BOARD
 
@@ -364,11 +364,6 @@ void preBuildDistortedLookupTable(std::vector<std::vector<distortion_uv >> &look
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void preBuildDistortedLookupTable(std::vector<std::vector<distortion_uv_4>> &lookupTable,const int width, const int height)
 {
-    // 畸变参数
-    // double k1 =-0.338011, k2 = 0.130450, p1 = 0.000287, p2 =0.000001 ,k3=  -0.024906;
-    // // 内参 
-    // double fx = 934.166126, fy = 935.122766, cx = 960.504061-300, cy =  562.707915-200;
-    // 初始化
     std::vector<distortion_uv_4> rows_(width);
     lookupTable.resize(height,rows_);
     for (int v = 0 ; v < height; v++)
@@ -870,7 +865,7 @@ int main(int argc, char *argv[])
     getopt_add_int(getopt, 'i', "iters", "1", "Repeat processing on input set this many times");
     getopt_add_int(getopt, 't', "threads", "2", "Use this many CPU threads");
     getopt_add_int(getopt, 'a', "hamming", "1", "Detect tags with up to this many bit errors.");
-    getopt_add_double(getopt, 'x', "decimate", "2.0", "Decimate input image by this factor");
+    getopt_add_double(getopt, 'x', "decimate", "1.0", "Decimate input image by this factor");
     getopt_add_double(getopt, 'b', "blur", "0.0", "Apply low-pass blur to input; negative sharpens");
     getopt_add_bool(getopt, '0', "refine-edges", 1, "Spend more time trying to align edges of tags");
 
@@ -1194,7 +1189,6 @@ int main(int argc, char *argv[])
         };
         printEstimateTagPose();
 
-
         //   对pose进行的检验
         auto checkTagPose = [&]( bool optimized )
         {
@@ -1250,7 +1244,7 @@ int main(int argc, char *argv[])
             }
         };
         // 
-        checkTagPose(false);
+        
 
 #ifdef TIME_STATISTICS
     auto  poseOptimization_startTime = getTime();
@@ -1265,6 +1259,8 @@ int main(int argc, char *argv[])
             
             // 单独对R2和t2做优化
             singleTagPoseOptimization(tag2_points,K,rotationMatrixTag2,tranVecTag2);
+
+            checkTagPose(false);
 
             // T1 T2 联合优化
             poseOptimization(tag1_points,tag2_points,K,rotationMatrixTag1,tranVecTag1,rotationMatrixTag2,tranVecTag2);
