@@ -794,7 +794,7 @@ void refinementCornersOnRawImage( const std::vector<cv::Point2f> &corners, const
     cv::Mat im = frame.clone();
     // 1 转回到原始图像上
     std::vector<cv::Point2f> corners_on_raw;
-    for ( int i = 0 ; i < 4; i ++ )
+    for ( int i = 0 ; i < 5; i ++ )
     {
         auto x1 = (corners[i].x - cx)/fx;
         auto y1 = (corners[i].y - cy)/fy;
@@ -813,7 +813,7 @@ void refinementCornersOnRawImage( const std::vector<cv::Point2f> &corners, const
     std::vector<cv::Point2f> corners_on_raw_after_subpixel;
     refinementCornerWithSubPixel(raw_im,corners_on_raw_after_gftt,corners_on_raw_after_subpixel);
     // 3 反投回
-    for (int j = 0 ; j < 4; j++)
+    for (int j = 0 ; j < 5; j++)
     {
         double x_distortion = (corners_on_raw_after_subpixel[j].x - cx)/fx;
         double y_distortion = (corners_on_raw_after_subpixel[j].y - cy)/fy;
@@ -990,7 +990,7 @@ int main(int argc, char *argv[])
             }
             // 
             std::vector<cv::Point2f> corners;
-            corners.resize(4);
+            corners.resize(5);
             printf("\n<<<<<<<<<<<< TAG ID = %i, decision_margin = %f\n", det->id,det->decision_margin);
 
             auto updateCorners = [&]()
@@ -1000,6 +1000,8 @@ int main(int argc, char *argv[])
                     cv::Point2f tmp(det->p[i][0],det->p[i][1]);
                     corners[i] = tmp;
                 }
+                corners[4] = cv::Point2f(det->c[0],det->c[1]);
+
                 if (0)
                 {
                     for ( int i = 0 ; i < 4 ; i ++)
@@ -1121,11 +1123,11 @@ int main(int argc, char *argv[])
             {
                 rotation_z_3 << rotation_matrix(0,2) , rotation_matrix(1,2), rotation_matrix(2,2);
                 tag1_points.resize(5);
-                for(int index = 0 ; index < 4; index++ )
+                for(int index = 0 ; index < 5; index++ )
                 {
                     tag1_points[index] = Eigen::Vector3d(double(corners_final[index].x) , double(corners_final[index].y) ,1.0);
                 }
-                tag1_points[4] = Eigen::Vector3d (double(det->c[0]),double(det->c[1]),1.0);
+                // tag1_points[4] = Eigen::Vector3d (double(det->c[0]),double(det->c[1]),1.0);
                 rotationMatrixTag1 = rotation_matrix;
                 tranVecTag1 = Eigen::Vector3d (double(pose.t->data[0]),double(pose.t->data[1]),double(pose.t->data[2]));
                 id3ready = true;
@@ -1134,11 +1136,11 @@ int main(int argc, char *argv[])
             {
                 rotation_z_6 << rotation_matrix(0,2), rotation_matrix(1,2), rotation_matrix(2,2);
                 tag2_points.resize(5);
-                for(int index = 0 ; index < 4; index++ )
+                for(int index = 0 ; index < 5; index++ )
                 {
                     tag2_points[index] = Eigen::Vector3d(double(corners_final[index].x) , double(corners_final[index].y) ,1.0);
                 }
-                tag2_points[4] = Eigen::Vector3d (double(det->c[0]),double(det->c[1]),1.0);
+                // tag2_points[4] = Eigen::Vector3d (double(det->c[0]),double(det->c[1]),1.0);
                 rotationMatrixTag2 = rotation_matrix;
                 tranVecTag2=  Eigen::Vector3d (double(pose.t->data[0]),double(pose.t->data[1]),double(pose.t->data[2]));
                 id6ready = true;
@@ -1170,7 +1172,7 @@ int main(int argc, char *argv[])
             };
             // reprojection();
             
-            for(int corner_id = 0; corner_id < 4; corner_id++)
+            for(int corner_id = 0; corner_id < 5; corner_id++)
             {
                 image_with_init_corners.at<uint8_t>(std::round(corners[corner_id].y),std::round(corners[corner_id].x)) = 255;
                 cv::circle(image_with_init_corners, corners[corner_id], 5, cv::Scalar(0, 255, 0), 2, 8, 0);
