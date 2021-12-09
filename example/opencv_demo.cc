@@ -211,11 +211,10 @@ public:
         /////////////////////////////////////////////////////////////////////////////////
         //  4  两个tag系中心之间的距离
         T r4;
-        // r4 = ((t2-t1).transpose()*(t2-t1)).norm()-(0.21*0.21);
         r4 = (t2-t1).norm() - tagCenterDistance;
-        T r5;
-        Eigen::Matrix<T,1,1> e_y = (t1-t2).transpose()*Eigen::Vector3d(0,1,0);
-        r5 = e_y.transpose()*e_y;
+        // T r5;
+        // Eigen::Matrix<T,1,1> e_y = (t1-t2).transpose()*Eigen::Vector3d(0,1,0);
+        // r5 = e_y.transpose()*e_y;
 
         residual[0] = r1[0] ;// 重投影误差第一项
         residual[1] = r1[1]; // 重投影误差第二项
@@ -224,7 +223,7 @@ public:
         residual[4] = r2[2]*10000.0; // x轴
         residual[5] = r3*100000.0; // 10点共面
         residual[6] = r4*1000.0; // tag中心距离
-        residual[7] = r5*1000.0; // 高度一致
+        // residual[7] = r5*1000.0; // 高度一致
         return true;
     }
 
@@ -581,7 +580,7 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points,
     for(int i = 0 ; i < 5; i++)
     {
         CostFunctor *Cost_functor1 = new CostFunctor (tag1_points[i],tag1_points[4],tag2_points[4],real_points[i],K,1);
-        problem.AddResidualBlock( new AutoDiffCostFunction<CostFunctor,8,4,3,4,3> (Cost_functor1), loss_function,
+        problem.AddResidualBlock( new AutoDiffCostFunction<CostFunctor,7,4,3,4,3> (Cost_functor1), loss_function,
                                                          quaternion1.coeffs().data(),t1.data(),quaternion2.coeffs().data(),t2.data());
         problem.SetParameterization(quaternion1.coeffs().data(), quaternion_local_parameterization);
         problem.SetParameterization(quaternion2.coeffs().data(), quaternion_local_parameterization);
@@ -589,7 +588,7 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points,
     for(int i = 0 ; i < 5; i++)
     {
         CostFunctor *Cost_functor2 = new CostFunctor (tag2_points[i],tag1_points[4],tag2_points[4],real_points[i],K,2);
-        problem.AddResidualBlock( new AutoDiffCostFunction<CostFunctor,8,4,3,4,3> (Cost_functor2), loss_function,
+        problem.AddResidualBlock( new AutoDiffCostFunction<CostFunctor,7,4,3,4,3> (Cost_functor2), loss_function,
                                                          quaternion1.coeffs().data(),t1.data(),quaternion2.coeffs().data(),t2.data());
         problem.SetParameterization(quaternion1.coeffs().data(), quaternion_local_parameterization);
         problem.SetParameterization(quaternion2.coeffs().data(), quaternion_local_parameterization);
@@ -1038,7 +1037,6 @@ int main(int argc, char *argv[])
             computeHomographyWithCorners(corners_final,newH);
             
             // 使用新的角点更新det的 H 及 corners
-
             auto updateDetwithNewCorners = [&] ()
             {
                 det->H->data[0] = newH(0,0);
@@ -1115,7 +1113,6 @@ int main(int argc, char *argv[])
                 {
                     tag1_points[index] = Eigen::Vector3d(double(corners_final[index].x) , double(corners_final[index].y) ,1.0);
                 }
-                // tag1_points[4] = Eigen::Vector3d (double(det->c[0]),double(det->c[1]),1.0);
                 rotationMatrixTag1 = rotation_matrix;
                 tranVecTag1 = Eigen::Vector3d (double(pose.t->data[0]),double(pose.t->data[1]),double(pose.t->data[2]));
                 id3ready = true;
@@ -1128,38 +1125,11 @@ int main(int argc, char *argv[])
                 {
                     tag2_points[index] = Eigen::Vector3d(double(corners_final[index].x) , double(corners_final[index].y) ,1.0);
                 }
-                // tag2_points[4] = Eigen::Vector3d (double(det->c[0]),double(det->c[1]),1.0);
                 rotationMatrixTag2 = rotation_matrix;
                 tranVecTag2=  Eigen::Vector3d (double(pose.t->data[0]),double(pose.t->data[1]),double(pose.t->data[2]));
                 id6ready = true;
             }
-            
-            auto reprojection = [&]()
-            {
-                Eigen::Vector3d transform_vector;
-                transform_vector << pose.t->data[0],pose.t->data[1],pose.t->data[2];
-                Eigen::Vector3d tagPoint0(-0.03,0.03,0.0);
-                Eigen::Vector3d tagPoint1(0.03,0.03,0.0);
-                Eigen::Vector3d tagPoint2(0.03,-0.03,0.0);
-                Eigen::Vector3d tagPoint3(-0.03,-0.03,0.0);
-                Eigen::Vector3d tagCenter(0.0,0.0,0.0);
 
-                Eigen::Vector3d c0 = K*(rotation_matrix* tagPoint0 + transform_vector); 
-                Eigen::Vector3d c1 = K*(rotation_matrix* tagPoint1 + transform_vector); 
-                Eigen::Vector3d c2 = K*(rotation_matrix* tagPoint2 + transform_vector); 
-                Eigen::Vector3d c3 = K*(rotation_matrix* tagPoint3 + transform_vector); 
-                Eigen::Vector3d c = K*(rotation_matrix* tagCenter + transform_vector); 
-
-                printf("reprojection result : \n");
-                printf("c0 =  %f, %f ,%f\n",c0[0]/c0[2],c0[1]/c0[2],c0[2]/c0[2]);
-                printf("c1 =  %f, %f ,%f\n",c1[0]/c1[2],c1[1]/c1[2],c1[2]/c1[2]);
-                printf("c2 =  %f, %f ,%f\n",c2[0]/c2[2],c2[1]/c2[2],c2[2]/c2[2]);
-                printf("c3 =  %f, %f ,%f\n",c3[0]/c3[2],c3[1]/c3[2],c3[2]/c3[2]);
-                printf("center =  %f, %f ,%f\n",c[0]/c[2],c[1]/c[2],c[2]/c[2]);
-
-            };
-            // reprojection();
-            
             for(int corner_id = 0; corner_id < 5; corner_id++)
             {
                 image_with_init_corners.at<uint8_t>(std::round(corners[corner_id].y),std::round(corners[corner_id].x)) = 255;
@@ -1177,7 +1147,7 @@ int main(int argc, char *argv[])
             {
                 double tmp = rotation_z_3.transpose()*rotation_z_6;
                 auto theta = std::acos(tmp/(rotation_z_6.norm()*rotation_z_3.norm()));
-                printf (">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>The angle diff between id-3 and id-6 = %f \n",theta * 180/3.14159);
+                printf ("[Before]>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>The angle diff between id-3 and id-6 = %f \n",theta * 180/3.14159);
             }
         };
         printEstimateTagPose();
@@ -1213,7 +1183,7 @@ int main(int argc, char *argv[])
                     image_check.at<uint8_t>(std::round(point_uv_2[1]/point_uv_2[2]),std::round(point_uv_2[0]/point_uv_2[2])) = 255;
                     cv::circle(image_check, cv::Point(point_uv_2[0]/point_uv_2[2],point_uv_2[1]/point_uv_2[2]), 8, cv::Scalar(0, 255, 0), 2, 8, 0);
                 }
-                
+
                 const std::vector<Eigen::Vector3d> real_points_{Eigen::Vector3d (-0.03,0.03,0.0), Eigen::Vector3d (0.03,0.03,0.0), Eigen::Vector3d (0.03,-0.03,0.0),
                                                                                                      Eigen::Vector3d (-0.03,-0.03,0.0), Eigen::Vector3d (0.0,0.0,0.0),
                                                                                                      Eigen::Vector3d (-0.02,0.02,0.0), Eigen::Vector3d (0.02,0.02,0.0), Eigen::Vector3d (0.02,-0.02,0.0),
@@ -1247,7 +1217,6 @@ int main(int argc, char *argv[])
             // 单独对R2和t2做优化
             singleTagPoseOptimization(tag2_points,K,rotationMatrixTag2,tranVecTag2);
 
-
             // T1 T2 联合优化
             poseOptimization(tag1_points,tag2_points,K,rotationMatrixTag1,tranVecTag1,rotationMatrixTag2,tranVecTag2);
         }
@@ -1265,7 +1234,6 @@ int main(int argc, char *argv[])
 
         checkTagPose(true);
 
-        // std::cout << ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>[Time] all time = " << t8-t1<< "ms\n" << std::endl;
         apriltag_detections_destroy(detections);
         // 
         auto saveImageResult = [&]()
@@ -1292,7 +1260,7 @@ int main(int argc, char *argv[])
             // std::string out_path_backup = "/home/xinyu/workspace/360/apriltags_tas/catkin_ws/src/apriltags_tas/apriltags_tas/example_images/"+std::to_string(imageIndex)+".jpg";
             // SaveImage(backup_image,out_path_backup);
 
-            // combine
+            // combine images
             std::vector<cv::Mat> imageVec;
             cv::Mat combineImage;
             imageVec.push_back(image_with_init_corners);
