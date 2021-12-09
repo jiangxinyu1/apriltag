@@ -48,6 +48,7 @@ extern "C" {
 #include "tagCircle21h7.h"
 #include "tagCircle49h12.h"
 #include "tagCustom48h12.h"
+#include "tagCustom16h5.h"
 #include "tagStandard41h12.h"
 #include "tagStandard52h13.h"
 #include "common/getopt.h"
@@ -857,7 +858,7 @@ int main(int argc, char *argv[])
     getopt_add_bool(getopt, 'h', "help", 0, "Show this help");
     getopt_add_bool(getopt, 'd', "debug", 0, "Enable debugging output (slow)");
     getopt_add_bool(getopt, 'q', "quiet", 0, "Reduce output");
-    getopt_add_string(getopt, 'f', "family", "tag16h5", "Tag family to use");
+    getopt_add_string(getopt, 'f', "family", "tagCustom16h5", "Tag family to use");
     getopt_add_int(getopt, 'i', "iters", "1", "Repeat processing on input set this many times");
     getopt_add_int(getopt, 't', "threads", "2", "Use this many CPU threads");
     getopt_add_int(getopt, 'a', "hamming", "1", "Detect tags with up to this many bit errors.");
@@ -885,6 +886,8 @@ int main(int argc, char *argv[])
         tf = tagStandard52h13_create();
     } else if (!strcmp(famname, "tagCustom48h12")) {
         tf = tagCustom48h12_create();
+    } else if (!strcmp(famname, "tagCustom16h5")) {
+        tf = tagCustom16h5_create();
     } else {
         printf("Unrecognized tag family name. Use e.g. \"tag36h11\".\n");
         exit(-1);
@@ -976,7 +979,6 @@ int main(int argc, char *argv[])
 
             if ((det->id != 3 && det->id != 6))
             {
-
                 continue;
             }
             // 

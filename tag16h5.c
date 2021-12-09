@@ -104,7 +104,7 @@ apriltag_family_t *tag16h5_create()
    tf->bit_y[15] = 3;
    tf->width_at_border = 6;
    tf->total_width = 8;
-   tf->reversed_border = false;
+   tf->reversed_border = true;
    return tf;
 }
 
