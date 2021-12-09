@@ -1007,16 +1007,17 @@ zarray_t *apriltag_detector_detect(apriltag_detector_t *td, image_u8_t *im_orig)
     timeprofile_stamp(td->tp, "init");
 
     ///////////////////////////////////////////////////////////
-    // Step 1. Detect quads according to requested image decimation
-    // and blurring parameters.
+    // Step 1. Detect quads according to requested image decimation and blurring parameters.
     image_u8_t *quad_im = im_orig;
     if (td->quad_decimate > 1) {
         quad_im = image_u8_decimate(im_orig, td->quad_decimate);
-
         timeprofile_stamp(td->tp, "decimate");
     }
 
-    if (td->quad_sigma != 0) {
+    printf("[debug] td->quad_sigma = %f \n", td->quad_sigma);
+
+    if (td->quad_sigma != 0)
+    {
         // compute a reasonable kernel width by figuring that the
         // kernel should go out 2 std devs.
         //
@@ -1032,7 +1033,9 @@ zarray_t *apriltag_detector_detect(apriltag_detector_t *td, image_u8_t *im_orig)
         if ((ksz & 1) == 0)
             ksz++;
 
-        if (ksz > 1) {
+        if (ksz > 1) 
+        // if (1) 
+        {
 
             if (td->quad_sigma > 0) {
                 // Apply a blur
@@ -1068,18 +1071,20 @@ zarray_t *apriltag_detector_detect(apriltag_detector_t *td, image_u8_t *im_orig)
 
     zarray_t *quads = apriltag_quad_thresh(td, quad_im);
 
-    // adjust centers of pixels so that they correspond to the
-    // original full-resolution image.
+    // adjust centers of pixels so that they correspond to the  original full-resolution image.
     if (td->quad_decimate > 1) {
         for (int i = 0; i < zarray_size(quads); i++) {
             struct quad *q;
             zarray_get_volatile(quads, i, &q);
 
-            for (int j = 0; j < 4; j++) {
-                if (td->quad_decimate == 1.5) {
+            for (int j = 0; j < 4; j++) 
+            {
+                if (td->quad_decimate == 1.5) 
+                {
                     q->p[j][0] *= td->quad_decimate;
                     q->p[j][1] *= td->quad_decimate;
-                } else {
+                } else 
+                {
                     q->p[j][0] = (q->p[j][0] - 0.5)*td->quad_decimate + 0.5;
                     q->p[j][1] = (q->p[j][1] - 0.5)*td->quad_decimate + 0.5;
                 }
@@ -1122,7 +1127,8 @@ zarray_t *apriltag_detector_detect(apriltag_detector_t *td, image_u8_t *im_orig)
 
     ////////////////////////////////////////////////////////////////
     // Step 2. Decode tags from each quad.
-    if (1) {
+    if (1) 
+    {
         image_u8_t *im_samples = td->debug ? image_u8_copy(im_orig) : NULL;
 
         int chunksize = 1 + zarray_size(quads) / (APRILTAG_TASKS_PER_THREAD_TARGET * td->nthreads);
@@ -1130,25 +1136,43 @@ zarray_t *apriltag_detector_detect(apriltag_detector_t *td, image_u8_t *im_orig)
         struct quad_decode_task *tasks = malloc(sizeof(struct quad_decode_task)*(zarray_size(quads) / chunksize + 1));
 
         int ntasks = 0;
-        for (int i = 0; i < zarray_size(quads); i+= chunksize) {
+        int numFilter = 0;
+        for (int i = 0; i < zarray_size(quads); i+= chunksize) 
+        {
+            // 过滤面积边长过短的quad
+            struct quad *quad;
+            zarray_get_volatile(quads, i, &quad);
+            float line1 = fabs(quad->p[0][0] - quad->p[1][0]) +fabs(quad->p[0][1] - quad->p[1][1]);
+            float line2 = fabs(quad->p[1][0] - quad->p[2][0]) +fabs(quad->p[1][1] - quad->p[2][1]);
+            float line3 = fabs(quad->p[2][0] - quad->p[3][0]) +fabs(quad->p[2][1] - quad->p[3][1]);
+            float line4 = fabs(quad->p[3][0] - quad->p[0][0]) +fabs(quad->p[3][1] - quad->p[0][1]);
+            // printf("line1 = %f\n", line1 );
+            const float thr = 40;
+            if ( line1 < thr || line2 < thr || line3 < thr || line4 < thr)
+            {
+                numFilter++;
+                continue;
+            }
+            // 
             tasks[ntasks].i0 = i;
             tasks[ntasks].i1 = imin(zarray_size(quads), i + chunksize);
             tasks[ntasks].quads = quads;
             tasks[ntasks].td = td;
             tasks[ntasks].im = im_orig;
             tasks[ntasks].detections = detections;
-
             tasks[ntasks].im_samples = im_samples;
 
             workerpool_add_task(td->wp, quad_decode_task, &tasks[ntasks]);
             ntasks++;
         }
+        printf("[Quad] number filted = %i , number quad = %i \n",numFilter,ntasks);
 
         workerpool_run(td->wp);
 
         free(tasks);
 
-        if (im_samples != NULL) {
+        if (im_samples != NULL) 
+        {
             image_u8_write_pnm(im_samples, "debug_samples.pnm");
             image_u8_destroy(im_samples);
         }

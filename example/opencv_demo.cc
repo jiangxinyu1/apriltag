@@ -81,15 +81,17 @@ const double pointZ = 0.25;
 #ifdef USE_CHARGE_TAG
 const double tagCenterDistance = 0.204;
 const double tagCenterHeight = 0.065;
-const double pointZ = 0.40;
+const double pointZ = 0.25;
 #endif // USE_CHARGE_TAG
 
 
 // const double k1 =-0.338011, k2 = 0.130450, p1 = 0.000287, p2 =0.000001 ,k3=  -0.024906;
 // const double fx = 934.166126, fy = 935.122766, cx = 960.504061-300, cy =  562.707915-200;
 
-const double k1 =-0.337591, k2 = 0.125105, p1 = 0.000421416, p2 =-0.000218274,k3=  -0.0220246;
-const double fx = 942.296, fy = 934.14, cx = 967.549-300, cy =  562.393-200;
+const double k1 =-0.337591, k2 = 0.125105, p1 = 0.000421416, p2 =-0.000218,k3=  -0.022025;
+const double fx = 933.213000, fy = 934.140000, cx = 967.549-300, cy =  562.393-200;
+
+const std::string path_prefix = "/data/test_1208_new/";
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -562,8 +564,9 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points,
 {
     const std::vector<Eigen::Vector3d> real_points{ Eigen::Vector3d (-0.03,0.03,0.0), Eigen::Vector3d (0.03,0.03,0.0), Eigen::Vector3d (0.03,-0.03,0.0),
                                                                                         Eigen::Vector3d (-0.03,-0.03,0.0), Eigen::Vector3d (0.0,0.0,0.0)};
-    std::cout << "[Before] t1  = \n" << t1[0] << "," <<t1[1] << "," << t1[2]<< std::endl;
-    std::cout << "[Before] t2  = \n" << t2[0] << "," <<t2[1] << "," << t2[2]<< std::endl;                                                                              
+
+    // std::cout << "[Before] t1  = \n" << t1[0] << "," <<t1[1] << "," << t1[2]<< std::endl;
+    // std::cout << "[Before] t2  = \n" << t2[0] << "," <<t2[1] << "," << t2[2]<< std::endl;                                                                              
 
     // 旋转矩阵转成四元数
     Eigen::Quaterniond quaternion1(R1);
@@ -608,8 +611,8 @@ void poseOptimization(const std::vector<Eigen::Vector3d>& tag1_points,
     printf ("[AFTER]-----------------------------------The angle diff between id-3 and id-6 = %f \n",theta * 180/3.14159);
     // std::cout << "R1.transpose()*R1 = \n" << (R1.transpose()*R1) << std::endl;
     // std::cout << "R2.transpose()*R2= \n" << (R2.transpose()*R2)<< std::endl;
-    std::cout << "[AFTER] t1  = \n" << t1[0] << "," <<t1[1] << "," << t1[2]<< std::endl;
-    std::cout << "[AFTER] t2  = \n" << t2[0] << "," <<t2[1] << "," << t2[2]<< std::endl;
+    // std::cout << "[AFTER] t1  = \n" << t1[0] << "," <<t1[1] << "," << t1[2]<< std::endl;
+    // std::cout << "[AFTER] t2  = \n" << t2[0] << "," <<t2[1] << "," << t2[2]<< std::endl;
     // std::cout << summary.FullReport() << '\n';
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -618,7 +621,7 @@ void singleTagPoseOptimization(const std::vector<Eigen::Vector3d>& tag1_points, 
 {
     const std::vector<Eigen::Vector3d> real_points{ Eigen::Vector3d (-0.03,0.03,0.0), Eigen::Vector3d (0.03,0.03,0.0), Eigen::Vector3d (0.03,-0.03,0.0),
                                                                                         Eigen::Vector3d (-0.03,-0.03,0.0), Eigen::Vector3d (0.0,0.0,0.0)};
-    std::cout << "[Before] t1  = \n" << t1[0] << "," <<t1[1] << "," << t1[2]<< std::endl;                                                                          
+    // std::cout << "[Before] t1  = \n" << t1[0] << "," <<t1[1] << "," << t1[2]<< std::endl;                                                                          
 
     // 旋转矩阵转成四元数
     Eigen::Quaterniond quaternion1(R1);
@@ -647,7 +650,7 @@ void singleTagPoseOptimization(const std::vector<Eigen::Vector3d>& tag1_points, 
     // print result
     R1 = quaternion1.toRotationMatrix();
     // std::cout << "R1.transpose()*R1 = \n" << (R1.transpose()*R1) << std::endl;
-    std::cout << "[AFTER] t1  = \n" << t1[0] << "," <<t1[1] << "," << t1[2]<< std::endl;
+    // std::cout << "[AFTER] t1  = \n" << t1[0] << "," <<t1[1] << "," << t1[2]<< std::endl;
     // std::cout << summary.FullReport() << '\n';
 }
 
@@ -779,10 +782,6 @@ void computeHomographyWithCorners( const std::vector<cv::Point2f> &corners_final
  */
 void refinementCornersOnRawImage( const std::vector<cv::Point2f> &corners, const cv::Mat &rawImage, const cv::Mat &frame ,std::vector<cv::Point2f> &new_corners)
 {
-    // 畸变参数
-    // double k1 =-0.338011, k2 = 0.130450, p1 = 0.000287, p2 =0.000001 ,k3=  -0.024906;
-    // // 内参 
-    // double fx = 934.166126, fy = 935.122766, cx = 960.504061-300, cy =  562.707915-200;
     Eigen::Matrix3d cameraK;
     cameraK << fx,0,cx,0,fy,cy,0,0,1;
     cv::Mat raw_im = rawImage.clone();
@@ -815,7 +814,6 @@ void refinementCornersOnRawImage( const std::vector<cv::Point2f> &corners, const
         double point[2];
         point[0] = x_distortion;
         point[1] = y_distortion;
-        std::cout << "[Before]" << point[0] << "," <<point[1] << "\n";
         cv::Point2d point_distortion(x_distortion,y_distortion);
         ceres::Problem problem;
         ceres::LossFunction* loss_function = NULL;
@@ -827,7 +825,6 @@ void refinementCornersOnRawImage( const std::vector<cv::Point2f> &corners, const
         //实例化求解对象
         ceres::Solver::Summary summary;
         ceres::Solve(solver_options,&problem,&summary);
-        std::cout << "[After]" << point[0] << "," <<point[1] << "\n";
         float x_undistortion = fx*point[0]+cx;
         float y_undistortion = fy*point[1]+cy;
         new_corners.emplace_back(cv::Point2f(x_undistortion,y_undistortion));
@@ -865,7 +862,7 @@ int main(int argc, char *argv[])
     getopt_add_int(getopt, 'i', "iters", "1", "Repeat processing on input set this many times");
     getopt_add_int(getopt, 't', "threads", "2", "Use this many CPU threads");
     getopt_add_int(getopt, 'a', "hamming", "1", "Detect tags with up to this many bit errors.");
-    getopt_add_double(getopt, 'x', "decimate", "1.0", "Decimate input image by this factor");
+    getopt_add_double(getopt, 'x', "decimate", "4.0", "Decimate input image by this factor");
     getopt_add_double(getopt, 'b', "blur", "0.0", "Apply low-pass blur to input; negative sharpens");
     getopt_add_bool(getopt, '0', "refine-edges", 1, "Spend more time trying to align edges of tags");
 
@@ -914,7 +911,7 @@ int main(int argc, char *argv[])
     {
         std::cout << "\n<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< NEW IMAGE <<<<<<<<<<<<<<<<<<< diatance = "<< imageIndex*10 <<"cm \n";
         //  1 循环读取YUV将其转成GRAY
-        std::string new_path = "/data/test56_new/"+std::to_string(imageIndex)+".yuv";
+        std::string new_path = path_prefix +std::to_string(imageIndex)+".yuv";
 
 #ifdef TIME_STATISTICS
     auto  imagePreprocess_startTime = getTime();
@@ -1035,10 +1032,6 @@ int main(int argc, char *argv[])
             //  确定最终的角点
             std::vector<cv::Point2f> corners_final;
             corners_final = corners_after_refinementOnRawImage;
-            for(int i = 0; i < corners_final.size(); i++)
-            {
-                printf("corners_final %i = %f ,%f\n",i,corners_final[i].x,corners_final[i].y);
-            }
 
             // 计算新的单应 
             Eigen::Matrix3d newH;
@@ -1192,8 +1185,6 @@ int main(int argc, char *argv[])
         //   对pose进行的检验
         auto checkTagPose = [&]( bool optimized )
         {
-            // myImageDistorted(backup_image,image_check,distortLookupTable);
-
             if ( id3ready && id6ready )
             {
                 Eigen::Vector3d pointTagTest(tagCenterDistance/2,tagCenterHeight,-pointZ);
@@ -1222,11 +1213,7 @@ int main(int argc, char *argv[])
                     image_check.at<uint8_t>(std::round(point_uv_2[1]/point_uv_2[2]),std::round(point_uv_2[0]/point_uv_2[2])) = 255;
                     cv::circle(image_check, cv::Point(point_uv_2[0]/point_uv_2[2],point_uv_2[1]/point_uv_2[2]), 8, cv::Scalar(0, 255, 0), 2, 8, 0);
                 }
-
-                if (optimized)
-                {
-                    return;
-                }
+                
                 const std::vector<Eigen::Vector3d> real_points_{Eigen::Vector3d (-0.03,0.03,0.0), Eigen::Vector3d (0.03,0.03,0.0), Eigen::Vector3d (0.03,-0.03,0.0),
                                                                                                      Eigen::Vector3d (-0.03,-0.03,0.0), Eigen::Vector3d (0.0,0.0,0.0),
                                                                                                      Eigen::Vector3d (-0.02,0.02,0.0), Eigen::Vector3d (0.02,0.02,0.0), Eigen::Vector3d (0.02,-0.02,0.0),
@@ -1260,7 +1247,6 @@ int main(int argc, char *argv[])
             // 单独对R2和t2做优化
             singleTagPoseOptimization(tag2_points,K,rotationMatrixTag2,tranVecTag2);
 
-            checkTagPose(false);
 
             // T1 T2 联合优化
             poseOptimization(tag1_points,tag2_points,K,rotationMatrixTag1,tranVecTag1,rotationMatrixTag2,tranVecTag2);
