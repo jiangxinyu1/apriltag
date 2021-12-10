@@ -74,7 +74,7 @@ using ceres::Solver;
 
 
 #ifdef USE_TAG_BOARD
-const double tagCenterDistance = 0.21;
+const double tagCenterDistance = 0.2015;
 const double tagCenterHeight = 0.051;
 const double pointZ = 0.25;
 #endif // USE_TAG_BOARD
@@ -85,13 +85,17 @@ const double tagCenterHeight = 0.065;
 const double pointZ = 0.25;
 #endif // USE_CHARGE_TAG
 
-
 // const double k1 =-0.338011, k2 = 0.130450, p1 = 0.000287, p2 =0.000001 ,k3=  -0.024906;
 // const double fx = 934.166126, fy = 935.122766, cx = 960.504061-300, cy =  562.707915-200;
 
 const double k1 =-0.337591, k2 = 0.125105, p1 = 0.000421416, p2 =-0.000218,k3=  -0.022025;
 const double fx = 933.213000, fy = 934.140000, cx = 967.549-300, cy =  562.393-200;
 
+// const int leftTagId = 6;
+// const int rightTagId = 3;
+
+const int leftTagId = 19;
+const int rightTagId = 2;
 const std::string path_prefix = "/data/test_1208_new/";
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -470,11 +474,6 @@ void myImageDistorted(cv::Mat &src , cv::Mat &image_undistort,const std::vector<
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void myImageDistorted(cv::Mat &src , cv::Mat &image_undistort)
 {
-    // 畸变参数
-    // double k1 =-0.338011, k2 = 0.130450, p1 = 0.000287, p2 =0.000001 ,k3=  -0.024906;
-    // // 内参
-    // double fx = 934.166126/2, fy = 935.122766/2, cx = 1360/2/2, cy =  680/2/2;
-
     cv::Mat image = src;
     int rows = src.rows, cols = src.cols;
     /*
@@ -977,7 +976,8 @@ int main(int argc, char *argv[])
             apriltag_detection_t *det;
             zarray_get(detections, i, &det);
 
-            if ((det->id != 3 && det->id != 6))
+
+            if ((det->id != rightTagId && det->id != leftTagId))
             {
                 continue;
             }
@@ -1107,7 +1107,7 @@ int main(int argc, char *argv[])
 #endif
 
 
-            if ( det->id == 3 )
+            if ( det->id == rightTagId )
             {
                 rotation_z_3 << rotation_matrix(0,2) , rotation_matrix(1,2), rotation_matrix(2,2);
                 tag1_points.resize(5);
@@ -1119,7 +1119,7 @@ int main(int argc, char *argv[])
                 tranVecTag1 = Eigen::Vector3d (double(pose.t->data[0]),double(pose.t->data[1]),double(pose.t->data[2]));
                 id3ready = true;
             }
-            if ( det->id == 6 )
+            if ( det->id == leftTagId )
             {
                 rotation_z_6 << rotation_matrix(0,2), rotation_matrix(1,2), rotation_matrix(2,2);
                 tag2_points.resize(5);
